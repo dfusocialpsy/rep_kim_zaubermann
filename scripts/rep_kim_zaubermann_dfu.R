@@ -90,8 +90,6 @@ tv(d002[, study_id_for_paper]) # 26 studies
 d002[, .N] # N = 14,925
 
 
-
-
 #--------------------------------------------#
 #                                            #
 ####        Study 1 - Correlations        ####
@@ -135,7 +133,7 @@ d_01_wom |>
              y = bias_threshold)) +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
   geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
-  
+
 
 
 s1_t1_t_women_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
@@ -609,5 +607,95 @@ performance::compare_performance(s1_t1_t_unknown,
                                  s1_t1_t_unknown_qr90,
                                  s1_t1_t_unknown_qr90) |> plot()
 
+
+
+#--------------------------------------------#
+#                                            #
+####        Study 1 - Regressions         ####
+#                                            #
+#--------------------------------------------#
+
+#* Women vs Men ####
+
+## Simple regression ## 
+wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+            d101)
+
+summary(wm_lm)
+
+# Check Assumptions
+performance::check_model(wm_lm)
+
+performance::check_outliers(wm_lm)
+performance::check_normality(wm_lm)
+performance::check_heteroscedasticity(wm_lm)
+
+## Quantile regression ##
+
+# Run quantile regression from 0.1 to 0.9 quantile
+wm_qr <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+            tau = seq(from = 0.1, 
+                      to = 0.9, 
+                      by = 0.1),
+            data = d101)
+
+summary(wm_qr) %>% 
+  plot()
+
+
+wm_qr10 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+                           tau = 0.1,
+                           data = d101)
+
+wm_qr30 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+                           tau = 0.3,
+                           data = d101)
+
+wm_qr50 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+                           tau = 0.5,
+                           data = d101)
+
+wm_qr70 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+                           tau = 0.7,
+                           data = d101)
+
+wm_qr90 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+                           tau = 0.9,
+                           data = d101)
+
+
+#**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
+tbl_merge(
+  tbls = list(
+    tbl_regression(wm_lm) |> 
+      bold_p(),
+    
+    tbl_regression(wm_qr10) |> 
+      bold_p(),
+    
+    tbl_regression(wm_qr30) |> 
+      bold_p(),
+    
+    tbl_regression(wm_qr50) |> 
+      bold_p(),
+    
+    tbl_regression(wm_qr70) |> 
+      bold_p(),
+    
+    tbl_regression(wm_qr90) |> 
+      bold_p()
+  ),
+  
+  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+)
+
+
+#** Compare Model fits ####
+performance::compare_performance(wm_lm,
+                                wm_qr10,
+                                wm_qr30,
+                                wm_qr50,
+                                wm_qr90,
+                                wm_qr90) 
 
 
