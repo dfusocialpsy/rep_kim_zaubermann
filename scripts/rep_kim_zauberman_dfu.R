@@ -11,6 +11,7 @@
 #                                            #
 #--------------------------------------------#
 
+if(!require(emmeans)){install.packages('emmeans')}
 if(!require(gtsummary)){install.packages('gtsummary')}
 if(!require(kim)){install.packages('kim')}
 if(!require(quantreg)){install.packages('quantreg')}
@@ -142,7 +143,6 @@ s1_t1_t_women_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
                                  by = 0.1),
                        data = d_01_wom)
 
-str(s1_t1_t_women_qr)
 
 
 s1_t1_t_women_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
@@ -196,6 +196,14 @@ tbl_merge(
   tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
 )
 
+
+#**  Compare Model fits ####
+performance::compare_performance(s1_t1_t_women,
+                                 s1_t1_t_women_qr10,
+                                 s1_t1_t_women_qr30,
+                                 s1_t1_t_women_qr50,
+                                 s1_t1_t_women_qr90,
+                                 s1_t1_t_women_qr90) |> plot()
 
 ##* Men as targets ####
 
@@ -639,8 +647,8 @@ wm_qr <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
                       by = 0.1),
             data = d101)
 
-summary(wm_qr) %>% 
-  plot()
+summary(wm_qr,
+        se = "boot") 
 
 
 wm_qr10 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
@@ -697,5 +705,46 @@ performance::compare_performance(wm_lm,
                                 wm_qr50,
                                 wm_qr90,
                                 wm_qr90) 
+
+
+#--------------------------------------------#
+#                                            #
+####         Study 1 - Floodlight         ####
+#                                            #
+#--------------------------------------------#
+
+#* Women vs Men ####
+
+## Simple regression ## 
+wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+            d101)
+
+# Plot model
+sjPlot::plot_model(wm_lm,
+                   type = "pred",
+                   terms = c("conservatism_7pt_merged", "bias_target_men_vs_women")
+                   )
+
+# Marginal means
+emmeans::emtrends(wm_lm,
+                  pairwise ~ bias_target_men_vs_women,
+                  var = "conservatism_7pt_merged",
+                  infer = TRUE)
+
+emmeans::emmeans(wm_lm,
+                  pairwise ~ bias_target_men_vs_women | conservatism_7pt_merged,
+                  at = list(conservatism_7pt_merged = seq(from = 1,
+                                                          to = 7, 
+                                                          by = 0.01)),
+                  infer = TRUE)
+
+emmeans::emmip(wm_lm,
+               bias_target_men_vs_women ~ conservatism_7pt_merged,
+               at = list(conservatism_7pt_merged = seq(from = 1,
+                                                       to = 7, 
+                                                       by = 0.01)),
+               CI = TRUE)
+
+
 
 
