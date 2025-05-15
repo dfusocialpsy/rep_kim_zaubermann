@@ -759,7 +759,7 @@ fun_mod <- function(ds, dv, ivs, moderator) {
     )
     
     model <- lm(formulars,
-                 data = ds)
+                data = ds)
     
     mods[[iv]] <- model
   }
@@ -806,7 +806,7 @@ fun_em <- function(
     # This creates the specs argument for emmeans function
     pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
     
-        emms_mod_linear[[iv]] <- emmeans(
+    emms_mod_linear[[iv]] <- emmeans(
       mod_linear,
       pw_form,
       at = setNames(list(seq(from = 1, to = 7, by = 0.01)), moderator),
@@ -819,11 +819,11 @@ fun_em <- function(
   
 }
 
-  
+
 zz <- fun_em(d101,
-               dv,
-               ivs, 
-               moderator)
+             dv,
+             ivs, 
+             moderator)
 
 
 zz$bias_target_men_vs_women
