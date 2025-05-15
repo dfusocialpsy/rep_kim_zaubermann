@@ -652,24 +652,24 @@ summary(wm_qr,
 
 
 wm_qr10 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-                           tau = 0.1,
-                           data = d101)
+              tau = 0.1,
+              data = d101)
 
 wm_qr30 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-                           tau = 0.3,
-                           data = d101)
+              tau = 0.3,
+              data = d101)
 
 wm_qr50 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-                           tau = 0.5,
-                           data = d101)
+              tau = 0.5,
+              data = d101)
 
 wm_qr70 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-                           tau = 0.7,
-                           data = d101)
+              tau = 0.7,
+              data = d101)
 
 wm_qr90 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-                           tau = 0.9,
-                           data = d101)
+              tau = 0.9,
+              data = d101)
 
 
 #**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
@@ -700,11 +700,11 @@ tbl_merge(
 
 #** Compare Model fits ####
 performance::compare_performance(wm_lm,
-                                wm_qr10,
-                                wm_qr30,
-                                wm_qr50,
-                                wm_qr90,
-                                wm_qr90) 
+                                 wm_qr10,
+                                 wm_qr30,
+                                 wm_qr50,
+                                 wm_qr90,
+                                 wm_qr90) 
 
 
 #--------------------------------------------#
@@ -723,7 +723,7 @@ wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
 sjPlot::plot_model(wm_lm,
                    type = "pred",
                    terms = c("conservatism_7pt_merged", "bias_target_men_vs_women")
-                   )
+)
 
 # Marginal means
 emmeans::emtrends(wm_lm,
@@ -732,11 +732,11 @@ emmeans::emtrends(wm_lm,
                   infer = TRUE)
 
 emmeans::emmeans(wm_lm,
-                  pairwise ~ bias_target_men_vs_women | conservatism_7pt_merged,
-                  at = list(conservatism_7pt_merged = seq(from = 1,
-                                                          to = 7, 
-                                                          by = 0.01)),
-                  infer = TRUE)
+                 pairwise ~ bias_target_men_vs_women | conservatism_7pt_merged,
+                 at = list(conservatism_7pt_merged = seq(from = 1,
+                                                         to = 7, 
+                                                         by = 0.01)),
+                 infer = TRUE)
 
 emmeans::emmip(wm_lm,
                bias_target_men_vs_women ~ conservatism_7pt_merged,
@@ -748,3 +748,82 @@ emmeans::emmip(wm_lm,
 
 
 
+
+# Set up a function for linear models with interaction
+fun_mod <- function(ds, dv, ivs, moderator) {
+  mods <- list()
+  
+  for(iv in ivs) {
+    formulars <- as.formula(
+      paste(dv, "~", iv, "*", moderator)
+    )
+    
+    model <- lm(formulars,
+                 data = ds)
+    
+    mods[[iv]] <- model
+  }
+  
+  return(mods)
+}
+
+
+ivs <- c(
+  "bias_target_men_vs_women",
+  "bias_target_whites_vs_blacks",
+  "bias_target_men_vs_unknown",
+  "bias_target_women_vs_unknown",
+  "bias_target_whites_vs_unknown",
+  "bias_target_blacks_vs_unknown")
+
+moderator <- "conservatism_7pt_merged"
+
+dv <- "bias_threshold"
+
+
+xy <-  fun_mod(d101,
+               dv,
+               ivs, 
+               moderator) 
+
+
+
+
+# Set up a function for emmea
+fun_em <- function(
+    ds,
+    dv,
+    ivs,
+    moderator) {
+  
+  for (iv in ivs) {
+    
+    # This creates the formulars for the linear models - based on the function input
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    
+    mod_linear <- lm(formulars, data = ds)
+    
+    # This creates the specs argument for emmeans function
+    pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
+    
+        emms_mod_linear[[iv]] <- emmeans(
+      mod_linear,
+      pw_form,
+      at = setNames(list(seq(from = 1, to = 7, by = 0.01)), moderator),
+      infer = TRUE)
+    
+    
+  }
+  
+  return(emms_mod_linear)
+  
+}
+
+  
+zz <- fun_em(d101,
+               dv,
+               ivs, 
+               moderator)
+
+
+zz$bias_target_men_vs_women
