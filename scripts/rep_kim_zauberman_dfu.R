@@ -91,6 +91,7 @@ tv(d002[, study_id_for_paper]) # 26 studies
 d002[, .N] # N = 14,925
 
 
+
 #--------------------------------------------#
 #                                            #
 ####        Study 1 - Correlations        ####
@@ -98,8 +99,26 @@ d002[, .N] # N = 14,925
 #--------------------------------------------#
 
 ##* Use the same data set as K & Z ####
-
 d101 <- d002[study_id_for_paper == "01"]
+
+
+# Set up a function for linear models with interaction
+fun_mod <- function(ds, dv, ivs, moderator) {
+  
+  mods <- list()
+  
+  for(iv in ivs) {
+    
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    
+    model <- lm(formulars, data = ds)
+    
+    mods[[iv]] <- model
+  }
+  
+  return(mods)
+}
+
 
 ##* Women as targets ####
 
@@ -713,62 +732,88 @@ performance::compare_performance(wm_lm,
 #                                            #
 #--------------------------------------------#
 
-#* Women vs Men ####
-
-## Simple regression ## 
-wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-            d101)
-
-# Plot model
-sjPlot::plot_model(wm_lm,
-                   type = "pred",
-                   terms = c("conservatism_7pt_merged", "bias_target_men_vs_women")
-)
-
-# Marginal means
-emmeans::emtrends(wm_lm,
-                  pairwise ~ bias_target_men_vs_women,
-                  var = "conservatism_7pt_merged",
-                  infer = TRUE)
-
-emmeans::emmeans(wm_lm,
-                 pairwise ~ bias_target_men_vs_women | conservatism_7pt_merged,
-                 at = list(conservatism_7pt_merged = seq(from = 1,
-                                                         to = 7, 
-                                                         by = 0.01)),
-                 infer = TRUE)
-
-emmeans::emmip(wm_lm,
-               bias_target_men_vs_women ~ conservatism_7pt_merged,
-               at = list(conservatism_7pt_merged = seq(from = 1,
-                                                       to = 7, 
-                                                       by = 0.01)),
-               CI = TRUE)
 
 
-
-
-
-# Set up a function for linear models with interaction
-fun_mod <- function(ds, dv, ivs, moderator) {
-  mods <- list()
+# Set up a function for computing emmeans
+fun_em <- function(ds, dv, ivs, moderator, steps = NULL) {
   
-  for(iv in ivs) {
-    formulars <- as.formula(
-      paste(dv, "~", iv, "*", moderator)
-    )
+  # List to store the results
+  emms_mod_linear <- list()
+  
+  for (iv in ivs) {
+    # This creates the formulas for the linear models based on the function input
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
     
-    model <- lm(formulars,
-                data = ds)
+    mod_linear <- lm(formulars, data = ds)
     
-    mods[[iv]] <- model
+    # This creates the specs argument for the emmeans function
+    pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
+    
+    # Run emmeans on the linear model with dynamic moderator
+    if (is.null(steps)) {
+      emms_mod_linear[[iv]] <- emmeans(
+        mod_linear,
+        pw_form,
+        infer = TRUE
+      )
+    } else {
+      # Use the user-specified 'steps' if provided
+      emms_mod_linear[[iv]] <- emmeans(
+        mod_linear,
+        pw_form,
+        at = setNames(list(steps), moderator),
+        infer = TRUE
+      )
+    }
   }
   
-  return(mods)
+  return(emms_mod_linear)
 }
 
 
-ivs <- c(
+# Set up a function for plotting emmeans
+fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
+  
+  # List to store the results
+  emms_mod_plot <- list()
+  
+  for (iv in ivs) {
+    # This creates the formulas for the linear models based on the function input
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    
+    mod_linear <- lm(formulars, data = ds)
+    
+    # This creates the specs argument for the emmip function
+    pw_form <- as.formula(paste(iv, "~", moderator))
+    
+    # Run emmeans on the linear model with dynamic moderator
+    if (is.null(steps)) {
+      emms_mod_plot[[iv]] <- emmip(
+        mod_linear,
+        pw_form,
+        dodge = 0, 
+        CI = TRUE
+      )
+    } else {
+      # Use the user-specified 'steps' if provided
+      emms_mod_plot[[iv]] <- emmip(
+        mod_linear,
+        pw_form,
+        at = setNames(list(steps), moderator),
+        dodge = 0, 
+        CI = TRUE
+      )
+    }
+  }
+  
+  return(emms_mod_plot)
+}
+
+
+# Set variables for the function
+my_dv <- "bias_threshold"
+
+my_ivs <- c(
   "bias_target_men_vs_women",
   "bias_target_whites_vs_blacks",
   "bias_target_men_vs_unknown",
@@ -776,54 +821,78 @@ ivs <- c(
   "bias_target_whites_vs_unknown",
   "bias_target_blacks_vs_unknown")
 
-moderator <- "conservatism_7pt_merged"
-
-dv <- "bias_threshold"
+my_mod <- "conservatism_7pt_merged"
 
 
-xy <-  fun_mod(d101,
-               dv,
-               ivs, 
-               moderator) 
+my_steps <- seq(from = 1, to = 7, by = 0.01)
+
+my_steps_plot <- seq(from = 1, to = 7, by = 0.1)
 
 
+# Create a list with the estimated marginal mean models
+emm_models <- fun_em(d101, my_dv, my_ivs, my_mod, my_steps)
+
+# Create a list with the estimated marginal mean model plots
+emm_model_plots <- fun_em_plot(d101, my_dv, my_ivs, my_mod, my_steps_plot)
 
 
-# Set up a function for emmea
-fun_em <- function(
-    ds,
-    dv,
-    ivs,
-    moderator) {
-  
-  for (iv in ivs) {
-    
-    # This creates the formulars for the linear models - based on the function input
-    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
-    
-    mod_linear <- lm(formulars, data = ds)
-    
-    # This creates the specs argument for emmeans function
-    pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
-    
-    emms_mod_linear[[iv]] <- emmeans(
-      mod_linear,
-      pw_form,
-      at = setNames(list(seq(from = 1, to = 7, by = 0.01)), moderator),
-      infer = TRUE)
-    
-    
-  }
-  
-  return(emms_mod_linear)
-  
-}
+#* Women vs Men ####
+
+emm_models$bias_target_men_vs_women
+
+emm_model_plots$bias_target_men_vs_women + 
+  geom_vline(xintercept = 4.79,
+             alpha = .7) 
 
 
-zz <- fun_em(d101,
-             dv,
-             ivs, 
-             moderator)
+#* Whites vs. Blacks ####
+
+emm_models$bias_target_whites_vs_blacks
+
+emm_model_plots$bias_target_whites_vs_blacks + 
+  geom_vline(xintercept = 3.42,
+             alpha = .7) +
+  geom_vline(xintercept = 4.92,
+             alpha = .7)
+
+#* Men vs. Unknown ####
+
+emm_models$bias_target_men_vs_unknown
+
+emm_model_plots$bias_target_men_vs_unknown + 
+  geom_vline(xintercept = 3.93,
+             alpha = .7) 
 
 
-zz$bias_target_men_vs_women
+#* Women vs. Unknown ####
+
+emm_models$bias_target_women_vs_unknown
+
+emm_model_plots$bias_target_women_vs_unknown + 
+  geom_vline(xintercept = 4.03,
+             alpha = .7) 
+
+#* Whites vs. Unknown ####
+
+emm_models$bias_target_whites_vs_unknown
+
+emm_model_plots$bias_target_whites_vs_unknown + 
+  geom_vline(xintercept = 3.62,
+             alpha = .7) 
+
+#* Blacks vs. Unknown ####
+
+emm_models$bias_target_blacks_vs_unknown
+
+emm_model_plots$bias_target_blacks_vs_unknown + 
+  geom_vline(xintercept = 4.83,
+             alpha = .7) 
+
+#--------------------------------------------#
+#                                            #
+####        Study 2 - Regressions         ####
+#                                            #
+#--------------------------------------------#
+
+##* Use the same data set as K & Z ####
+d201 <- d002[study_id_for_paper == "02"]
