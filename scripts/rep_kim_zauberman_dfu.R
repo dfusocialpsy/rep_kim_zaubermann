@@ -102,53 +102,131 @@ d002[, .N] # N = 14,925
 d101 <- d002[study_id_for_paper == "01"]
 
 
-# Set up a function for linear models with interaction
-fun_mod <- function(ds, dv, ivs, moderator) {
+fun_mod_lin <- function(ds, dv, iv, targets) {
   
+  # Create an empty list for the output
   mods <- list()
   
-  for(iv in ivs) {
+  # Loop over targets
+  for (target in targets) {
     
-    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    # Set up formular
+    formula = as.formula(paste(my_dv, "~", my_iv))
     
-    model <- lm(formulars, data = ds)
+    # Create sub data frames for each model
+    filtered_ds <- ds |> 
+      subset(bias_target == target)
     
-    mods[[iv]] <- model
+    # Run model
+    model <- lm(formula, data = filtered_ds)
+    
+    # Save model outputs in the list from the beginning
+    mods[[target]] <- model
   }
   
   return(mods)
 }
 
 
+# Set parameters for the function
+
+my_iv = "conservatism_7pt_merged"
+
+my_targets = c("women",
+               "men",
+               "whites",
+               "blacks",
+               "unknown")
+
+my_dv = "bias_threshold"
+
+
+# Set up a function for quantile regressions
+fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
+  
+  # Create an empty list to store models
+  mods <- list()
+  
+  # Loop over targets
+  for (target in targets) {
+    
+    # Set up formula using the provided dv (dependent variable) and iv (independent variable)
+    formula <- as.formula(paste(dv, "~", iv))
+    
+    # Subset the data for the current target
+    filtered_ds <- ds |> 
+      subset(bias_target == target)
+    
+    # Create an empty list to store models for each tau
+    tau_models <- list()
+    
+    # Loop over taus
+    for (tau in taus) {
+      # Run the quantile regression model for the current tau
+      model <- quantreg::rq(formula, 
+                            data = filtered_ds, 
+                            tau = tau)
+      
+      # Store the model for the current tau in the list
+      tau_models[[paste0("t_", tau)]] <- model
+    }
+    
+    # Store all tau models for the current target in the mods list
+    mods[[target]] <- tau_models
+  }
+  
+  return(mods)
+}
+
+# Set up a function for model summaries for quantile regression
+fun_mod_summaries <- function(model_list) {
+  
+  # Loop over the names in the model list
+  for (name in names(model_list)) {
+
+        # Get the model summary
+    model_summary <- summary(model_list[[name]],
+                             se = "boot")
+    
+    # Print the model summary
+    return(model_summary)
+  }
+}
+
+
+# Run linear models
+sim_lms <- fun_mod_lin(d101,
+                       my_dv,
+                       my_iv,
+                       my_targets)
+
+# Run quantile models
+sim_qrs <- fun_mod_qr_ni(d101,
+                         my_dv,
+                         my_iv,
+                         my_targets,
+                         seq(from = 0.1,
+                             to = 0.9,
+                             by = 0.1))
+
+#Run quantile regression as robustness check ####
+
 ##* Women as targets ####
 
-#** Create the data set ####
-d_01_wom <- d101 |> 
-  filter(bias_target == "women")
+sim_lms$women |> 
+  summary()
+
+# Check assumptions
+performance::check_outliers(sim_lms$women)
+performance::check_normality(sim_lms$women)
+performance::check_heteroscedasticity(sim_lms$women)
 
 
-#**  Check model assumptions ####
+# Quantile regressions 
 
-s1_t1_t_women <- lm(bias_threshold ~ conservatism_7pt_merged,
-                    d_01_wom)
-
-summary(s1_t1_t_women)
-
-d_01_wom |> 
-  ggplot(aes(x = conservatism_7pt_merged)) +
-  geom_density()
-
-d_01_wom |> 
-  ggplot(aes(x = bias_threshold)) +
-  geom_density()
-
-performance::check_outliers(s1_t1_t_women)
-performance::check_normality(s1_t1_t_women)
-performance::check_heteroscedasticity(s1_t1_t_women)
-
-#** Run quantile regression as robustness check ####
-
-d_01_wom |> 
+# Plot work on a function
+d101 |>
+  filter(bias_target == "women") |> 
   ggplot(aes(x = conservatism_7pt_merged,
              y = bias_threshold)) +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -156,59 +234,30 @@ d_01_wom |>
 
 
 
-s1_t1_t_women_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = seq(from = 0.1, 
-                                 to = 0.9, 
-                                 by = 0.1),
-                       data = d_01_wom)
+fun_model_summaries(sim_qrs)
 
 
-
-s1_t1_t_women_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = 0.1,
-                         data = d_01_wom)
-
-s1_t1_t_women_qr30 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = 0.3,
-                         data = d_01_wom)
-
-s1_t1_t_women_qr50 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = 0.5,
-                         data = d_01_wom)
-
-s1_t1_t_women_qr70 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = 0.7,
-                         data = d_01_wom)
-
-s1_t1_t_women_qr90 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = 0.9,
-                         data = d_01_wom)
-
-str(s1_t1_t_women_qr)
-
-summary(s1_t1_t_women_qr) %>% 
-  plot(parm = "conservatism_7pt_merged")
 
 
 #**   Create a table summary for ols, q10, q30, q50, q70, q90 ####
 tbl_merge(
   tbls = list(
-    tbl_regression(s1_t1_t_women) |> 
+    tbl_regression(sim_lms$women) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_women_qr10) |> 
+    tbl_regression(sim_qrs$women$t_0.1) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_women_qr30) |> 
+    tbl_regression(sim_qrs$women$t_0.3) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_women_qr50) |> 
+    tbl_regression(sim_qrs$women$t_0.5) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_women_qr70) |> 
+    tbl_regression(sim_qrs$women$t_0.7) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_women_qr90) |> 
+    tbl_regression(sim_qrs$women$t_0.9) |> 
       bold_p()
   ),
   
@@ -217,12 +266,12 @@ tbl_merge(
 
 
 #**  Compare Model fits ####
-performance::compare_performance(s1_t1_t_women,
-                                 s1_t1_t_women_qr10,
-                                 s1_t1_t_women_qr30,
-                                 s1_t1_t_women_qr50,
-                                 s1_t1_t_women_qr90,
-                                 s1_t1_t_women_qr90) |> plot()
+performance::compare_performance(sim_lms$women,
+                                 sim_qrs$women$t_0.1,
+                                 sim_qrs$women$t_0.2,
+                                 sim_qrs$women$t_0.5,
+                                 sim_qrs$women$t_0.7,
+                                 sim_qrs$women$t_0.9) #|> plot()
 
 ##* Men as targets ####
 
