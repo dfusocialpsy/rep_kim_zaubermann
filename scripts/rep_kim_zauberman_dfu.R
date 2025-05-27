@@ -19,6 +19,7 @@ if(!require(tidyverse)){install.packages('tidyverse')}
 
 start_kim()
 
+
 #--------------------------------------------#
 #                                            #
 ####             Load data                ####
@@ -91,17 +92,31 @@ tv(d002[, study_id_for_paper]) # 26 studies
 d002[, .N] # N = 14,925
 
 
-
 #--------------------------------------------#
 #                                            #
-####        Study 1 - Correlations        ####
+####               Set up                 ####
 #                                            #
 #--------------------------------------------#
 
-##* Use the same data set as K & Z ####
-d101 <- d002[study_id_for_paper == "01"]
 
 
+
+### Set a color palette ####
+# Colors for plots
+my_pal <- c(OLS = "#5e4fa2",
+            Q10 = "#3288bd",
+            Q20 = "#fee08b",
+            Q30 = "#e6f598",
+            Q40 = "#abdda4",
+            Q50 = "#66c2a5",
+            Q60 = "#fdae61",
+            Q70 = "#f46d43",
+            Q80 = "#d53e4f",
+            Q90 = "#9e0142")
+
+### Functions ####
+
+# Set up a function for simple linear models
 fun_mod_lin <- function(ds, dv, iv, targets) {
   
   # Create an empty list for the output
@@ -127,21 +142,7 @@ fun_mod_lin <- function(ds, dv, iv, targets) {
   return(mods)
 }
 
-
-# Set parameters for the function
-
-my_iv = "conservatism_7pt_merged"
-
-my_targets = c("women",
-               "men",
-               "whites",
-               "blacks",
-               "unknown")
-
-my_dv = "bias_threshold"
-
-
-# Set up a function for quantile regressions
+# Set up a function for quantile regressions (no interaction)
 fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
   
   # Create an empty list to store models
@@ -178,29 +179,148 @@ fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
   return(mods)
 }
 
+# Set up a function for plotting a linear model with accompanying quantile models
+fun_plot_lm_rq <- function(ds, y_var, x_var, colors = NULL) {
+  
+  ds |> 
+    ggplot2::ggplot(aes(x = {{x_var}}, 
+                        y = {{y_var}})) +
+    geom_smooth(method = "lm", se = FALSE, aes(color = "OLS"),
+                linewidth = 1.5) +
+    
+    geom_quantile(quantiles = 0.1, aes(color = "Q10"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.2, aes(color = "Q20"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.3, aes(color = "Q30"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.4, aes(color = "Q40"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.5, aes(color = "Q50"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.6, aes(color = "Q60"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.7, aes(color = "Q70"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.8, aes(color = "Q80"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.9, aes(color = "Q90"), alpha = 0.8) +
+
+    scale_color_manual(values = colors) +
+    
+    theme_bw() +
+    theme(legend.title=element_blank()) 
+}
+
 # Set up a function for model summaries for quantile regression
 fun_mod_summaries <- function(model_list) {
   
-  # Loop over the names in the model list
-  for (name in names(model_list)) {
-
-        # Get the model summary
-    model_summary <- summary(model_list[[name]],
-                             se = "boot")
-    
-    # Print the model summary
-    return(model_summary)
-  }
+  lapply(model_list, function(model) {
+    summary(model, se = "boot")
+  })
 }
 
 
-# Run linear models
+# Set up a function for computing emmeans
+fun_em <- function(ds, dv, ivs, moderator, steps = NULL) {
+  
+  # List to store the results
+  emms_mod_linear <- list()
+  
+  for (iv in ivs) {
+    # This creates the formulas for the linear models based on the function input
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    
+    mod_linear <- lm(formulars, data = ds)
+    
+    # This creates the specs argument for the emmeans function
+    pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
+    
+    # Run emmeans on the linear model with dynamic moderator
+    if (is.null(steps)) {
+      emms_mod_linear[[iv]] <- emmeans(
+        mod_linear,
+        pw_form,
+        infer = TRUE
+      )
+    } else {
+      # Use the user-specified 'steps' if provided
+      emms_mod_linear[[iv]] <- emmeans(
+        mod_linear,
+        pw_form,
+        at = setNames(list(steps), moderator),
+        infer = TRUE
+      )
+    }
+  }
+  
+  return(emms_mod_linear)
+}
+
+# Set up a function for plotting emmeans
+fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
+  
+  # List to store the results
+  emms_mod_plot <- list()
+  
+  for (iv in ivs) {
+    # This creates the formulas for the linear models based on the function input
+    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
+    
+    mod_linear <- lm(formulars, data = ds)
+    
+    # This creates the specs argument for the emmip function
+    pw_form <- as.formula(paste(iv, "~", moderator))
+    
+    # Run emmeans on the linear model with dynamic moderator
+    if (is.null(steps)) {
+      emms_mod_plot[[iv]] <- emmip(
+        mod_linear,
+        pw_form,
+        dodge = 0, 
+        CI = TRUE
+      )
+    } else {
+      # Use the user-specified 'steps' if provided
+      emms_mod_plot[[iv]] <- emmip(
+        mod_linear,
+        pw_form,
+        at = setNames(list(steps), moderator),
+        dodge = 0, 
+        CI = TRUE
+      )
+    }
+  }
+  
+  return(emms_mod_plot)
+}
+
+
+#--------------------------------------------#
+#                                            #
+####        Study 1 - Correlations        ####
+#                                            #
+#--------------------------------------------#
+
+##* Use the same data set as K & Z ####
+d101 <- d002[study_id_for_paper == "01"]
+
+
+
+# Set parameters for the function (fun_mod_lin)
+
+my_iv = "conservatism_7pt_merged"
+
+my_targets = c("women",
+               "men",
+               "whites",
+               "blacks",
+               "unknown")
+
+my_dv = "bias_threshold"
+
+# Set table spanners
+my_tb_sp <- c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+
+#* Run linear models ####
 sim_lms <- fun_mod_lin(d101,
                        my_dv,
                        my_iv,
                        my_targets)
 
-# Run quantile models
+#* Run quantile models as robustness check ####
 sim_qrs <- fun_mod_qr_ni(d101,
                          my_dv,
                          my_iv,
@@ -209,12 +329,10 @@ sim_qrs <- fun_mod_qr_ni(d101,
                              to = 0.9,
                              by = 0.1))
 
-#Run quantile regression as robustness check ####
 
-##* Women as targets ####
+#* Women as targets ####
 
-sim_lms$women |> 
-  summary()
+sim_lms$women 
 
 # Check assumptions
 performance::check_outliers(sim_lms$women)
@@ -224,22 +342,26 @@ performance::check_heteroscedasticity(sim_lms$women)
 
 # Quantile regressions 
 
-# Plot work on a function
+# Plot 
 d101 |>
   filter(bias_target == "women") |> 
-  ggplot(aes(x = conservatism_7pt_merged,
-             y = bias_threshold)) +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
+  fun_plot_lm_rq(y_var = bias_threshold,
+                 x_var = conservatism_7pt_merged,
+                 colors = my_pal)
 
 
-
-fun_model_summaries(sim_qrs)
-
+fun_mod_summaries(sim_qrs$women)
 
 
+#  Compare Model fits 
+performance::compare_performance(sim_lms$women,
+                                 sim_qrs$women$t_0.1,
+                                 sim_qrs$women$t_0.2,
+                                 sim_qrs$women$t_0.5,
+                                 sim_qrs$women$t_0.7,
+                                 sim_qrs$women$t_0.9) #|> plot()
 
-#**   Create a table summary for ols, q10, q30, q50, q70, q90 ####
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
 tbl_merge(
   tbls = list(
     tbl_regression(sim_lms$women) |> 
@@ -261,17 +383,10 @@ tbl_merge(
       bold_p()
   ),
   
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+  tab_spanner = my_tb_sp
 )
 
 
-#**  Compare Model fits ####
-performance::compare_performance(sim_lms$women,
-                                 sim_qrs$women$t_0.1,
-                                 sim_qrs$women$t_0.2,
-                                 sim_qrs$women$t_0.5,
-                                 sim_qrs$women$t_0.7,
-                                 sim_qrs$women$t_0.9) #|> plot()
 
 ##* Men as targets ####
 
@@ -783,80 +898,6 @@ performance::compare_performance(wm_lm,
 
 
 
-# Set up a function for computing emmeans
-fun_em <- function(ds, dv, ivs, moderator, steps = NULL) {
-  
-  # List to store the results
-  emms_mod_linear <- list()
-  
-  for (iv in ivs) {
-    # This creates the formulas for the linear models based on the function input
-    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
-    
-    mod_linear <- lm(formulars, data = ds)
-    
-    # This creates the specs argument for the emmeans function
-    pw_form <- as.formula(paste("pairwise", "~", iv, "|", moderator))
-    
-    # Run emmeans on the linear model with dynamic moderator
-    if (is.null(steps)) {
-      emms_mod_linear[[iv]] <- emmeans(
-        mod_linear,
-        pw_form,
-        infer = TRUE
-      )
-    } else {
-      # Use the user-specified 'steps' if provided
-      emms_mod_linear[[iv]] <- emmeans(
-        mod_linear,
-        pw_form,
-        at = setNames(list(steps), moderator),
-        infer = TRUE
-      )
-    }
-  }
-  
-  return(emms_mod_linear)
-}
-
-
-# Set up a function for plotting emmeans
-fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
-  
-  # List to store the results
-  emms_mod_plot <- list()
-  
-  for (iv in ivs) {
-    # This creates the formulas for the linear models based on the function input
-    formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
-    
-    mod_linear <- lm(formulars, data = ds)
-    
-    # This creates the specs argument for the emmip function
-    pw_form <- as.formula(paste(iv, "~", moderator))
-    
-    # Run emmeans on the linear model with dynamic moderator
-    if (is.null(steps)) {
-      emms_mod_plot[[iv]] <- emmip(
-        mod_linear,
-        pw_form,
-        dodge = 0, 
-        CI = TRUE
-      )
-    } else {
-      # Use the user-specified 'steps' if provided
-      emms_mod_plot[[iv]] <- emmip(
-        mod_linear,
-        pw_form,
-        at = setNames(list(steps), moderator),
-        dodge = 0, 
-        CI = TRUE
-      )
-    }
-  }
-  
-  return(emms_mod_plot)
-}
 
 
 # Set variables for the function
