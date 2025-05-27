@@ -123,9 +123,9 @@ fun_mod_lin <- function(ds, dv, iv, targets) {
   mods <- list()
   
   # Loop over targets
-  for (target in targets) {
+  for (target in seq_along(targets)) {
     
-    # Set up formular
+    # Set up formula
     formula = as.formula(paste(my_dv, "~", my_iv))
     
     # Create sub data frames for each model
@@ -149,7 +149,7 @@ fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
   mods <- list()
   
   # Loop over targets
-  for (target in targets) {
+  for (target in seq_along(targets)) {
     
     # Set up formula using the provided dv (dependent variable) and iv (independent variable)
     formula <- as.formula(paste(dv, "~", iv))
@@ -162,7 +162,7 @@ fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
     tau_models <- list()
     
     # Loop over taus
-    for (tau in taus) {
+    for (tau in seq_along(taus)) {
       # Run the quantile regression model for the current tau
       model <- quantreg::rq(formula, 
                             data = filtered_ds, 
@@ -219,7 +219,7 @@ fun_em <- function(ds, dv, ivs, moderator, steps = NULL) {
   # List to store the results
   emms_mod_linear <- list()
   
-  for (iv in ivs) {
+  for (iv in seq_along(ivs)) {
     # This creates the formulas for the linear models based on the function input
     formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
     
@@ -255,7 +255,7 @@ fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
   # List to store the results
   emms_mod_plot <- list()
   
-  for (iv in ivs) {
+  for (iv in seq_along(ivs)) {
     # This creates the formulas for the linear models based on the function input
     formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
     
@@ -388,417 +388,230 @@ tbl_merge(
 
 
 
-##* Men as targets ####
+#* Men as targets ####
 
-#**  Create the data set ####
-d_01_men <- d101 |> 
-  filter(bias_target == "men")
+sim_lms$men 
 
-
-#** Check model assumptions ####
-
-s1_t1_t_men <- lm(bias_threshold ~ conservatism_7pt_merged,
-                  d_01_men)
-
-summary(s1_t1_t_men)
-
-d_01_men |> 
-  ggplot(aes(x = conservatism_7pt_merged)) +
-  geom_density()
-
-d_01_men |> 
-  ggplot(aes(x = bias_threshold)) +
-  geom_density()
-
-performance::check_outliers(s1_t1_t_men)
-performance::check_normality(s1_t1_t_men)
-performance::check_heteroscedasticity(s1_t1_t_men)
-
-#**  Run quantile regression as robustness check ####
-
-d_01_men |> 
-  ggplot(aes(x = conservatism_7pt_merged,
-             y = bias_threshold)) +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
+# Check assumptions
+performance::check_outliers(sim_lms$men)
+performance::check_normality(sim_lms$men)
+performance::check_heteroscedasticity(sim_lms$men)
 
 
+# Quantile regressions 
 
-s1_t1_t_men_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
-                     tau = seq(from = 0.1, 
-                               to = 0.9, 
-                               by = 0.1),
-                     data = d_01_men)
-
-
-summary(s1_t1_t_men_qr) %>% 
-  plot(parm = "conservatism_7pt_merged")
+# Plot 
+d101 |>
+  filter(bias_target == "men") |> 
+  fun_plot_lm_rq(y_var = bias_threshold,
+                 x_var = conservatism_7pt_merged,
+                 colors = my_pal)
 
 
-s1_t1_t_men_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = 0.1,
-                       data = d_01_men)
-
-s1_t1_t_men_qr30 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = 0.3,
-                       data = d_01_men)
-
-s1_t1_t_men_qr50 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = 0.5,
-                       data = d_01_men)
-
-s1_t1_t_men_qr70 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = 0.7,
-                       data = d_01_men)
-
-s1_t1_t_men_qr90 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                       tau = 0.9,
-                       data = d_01_men)
+fun_mod_summaries(sim_qrs$men)
 
 
+#  Compare Model fits 
+performance::compare_performance(sim_lms$men,
+                                 sim_qrs$men$t_0.1,
+                                 sim_qrs$men$t_0.2,
+                                 sim_qrs$men$t_0.5,
+                                 sim_qrs$men$t_0.7,
+                                 sim_qrs$men$t_0.9) 
 
-
-
-#**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
 tbl_merge(
   tbls = list(
-    tbl_regression(s1_t1_t_men) |> 
+    tbl_regression(sim_lms$men) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_men_qr10) |> 
+    tbl_regression(sim_qrs$men$t_0.1) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_men_qr30) |> 
+    tbl_regression(sim_qrs$men$t_0.3) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_men_qr50) |> 
+    tbl_regression(sim_qrs$men$t_0.5) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_men_qr70) |> 
+    tbl_regression(sim_qrs$men$t_0.7) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_men_qr90) |> 
+    tbl_regression(sim_qrs$men$t_0.9) |> 
       bold_p()
   ),
   
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+  tab_spanner = my_tb_sp
 )
 
+#* Whites as targets ####
 
-#**  Compare Model fits ####
-performance::compare_performance(s1_t1_t_men,
-                                 s1_t1_t_men_qr10,
-                                 s1_t1_t_men_qr30,
-                                 s1_t1_t_men_qr50,
-                                 s1_t1_t_men_qr90,
-                                 s1_t1_t_men_qr90) |> plot()
+sim_lms$whites 
 
-
-##* Whites as targets ####
-
-#**Create the data set ####
-d_01_whites <- d101 |> 
-  filter(bias_target == "whites")
+# Check assumptions
+performance::check_outliers(sim_lms$whites)
+performance::check_normality(sim_lms$whites)
+performance::check_heteroscedasticity(sim_lms$whites)
 
 
-#** Check model assumptions ####
+# Quantile regressions 
 
-s1_t1_t_whites <- lm(bias_threshold ~ conservatism_7pt_merged,
-                     d_01_whites)
-
-summary(s1_t1_t_whites)
-
-d_01_whites |> 
-  ggplot(aes(x = conservatism_7pt_merged)) +
-  geom_density()
-
-d_01_whites |> 
-  ggplot(aes(x = bias_threshold)) +
-  geom_density()
-
-performance::check_outliers(s1_t1_t_whites)
-performance::check_normality(s1_t1_t_whites)
-performance::check_heteroscedasticity(s1_t1_t_whites)
-
-#** Run quantile regression as robustness check ####
-
-d_01_whites |> 
-  ggplot(aes(x = conservatism_7pt_merged,
-             y = bias_threshold)) +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
+# Plot 
+d101 |>
+  filter(bias_target == "whites") |> 
+  fun_plot_lm_rq(y_var = bias_threshold,
+                 x_var = conservatism_7pt_merged,
+                 colors = my_pal)
 
 
-
-s1_t1_t_whites_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
-                        tau = seq(from = 0.1, 
-                                  to = 0.9, 
-                                  by = 0.1),
-                        data = d_01_whites)
-
-summary(s1_t1_t_whites_qr) %>% 
-  plot(parm = "conservatism_7pt_merged")
+fun_mod_summaries(sim_qrs$whites)
 
 
-s1_t1_t_whites_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.1,
-                          data = d_01_whites)
+#  Compare Model fits 
+performance::compare_performance(sim_lms$whites,
+                                 sim_qrs$whites$t_0.1,
+                                 sim_qrs$whites$t_0.2,
+                                 sim_qrs$whites$t_0.5,
+                                 sim_qrs$whites$t_0.7,
+                                 sim_qrs$whites$t_0.9) 
 
-s1_t1_t_whites_qr30 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.3,
-                          data = d_01_whites)
-
-s1_t1_t_whites_qr50 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.5,
-                          data = d_01_whites)
-
-s1_t1_t_whites_qr70 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.7,
-                          data = d_01_whites)
-
-s1_t1_t_whites_qr90 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.9,
-                          data = d_01_whites)
-
-#** Create a table summary for ols, q10, q30, q50, q70, q90 ####
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
 tbl_merge(
   tbls = list(
-    tbl_regression(s1_t1_t_whites) |> 
+    tbl_regression(sim_lms$whites) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_whites_qr10) |> 
+    tbl_regression(sim_qrs$whites$t_0.1) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_whites_qr30) |> 
+    tbl_regression(sim_qrs$whites$t_0.3) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_whites_qr50) |> 
+    tbl_regression(sim_qrs$whites$t_0.5) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_whites_qr70) |> 
+    tbl_regression(sim_qrs$whites$t_0.7) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_whites_qr90) |> 
+    tbl_regression(sim_qrs$whites$t_0.9) |> 
       bold_p()
   ),
   
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+  tab_spanner = my_tb_sp
 )
 
-#** Compare Model fits ####
-performance::compare_performance(s1_t1_t_whites,
-                                 s1_t1_t_whites_qr10,
-                                 s1_t1_t_whites_qr30,
-                                 s1_t1_t_whites_qr50,
-                                 s1_t1_t_whites_qr90,
-                                 s1_t1_t_whites_qr90) |> plot()
+#* Balcks as targets ####
+
+sim_lms$blacks 
+
+# Check assumptions
+performance::check_outliers(sim_lms$blacks)
+performance::check_normality(sim_lms$blacks)
+performance::check_heteroscedasticity(sim_lms$blacks)
 
 
-##* Blacks as targets ####
+# Quantile regressions 
 
-#** Create the data set ####
-d_01_blacks <- d101 |> 
-  filter(bias_target == "blacks")
-
-
-#** Check model assumptions ####
-
-s1_t1_t_blacks <- lm(bias_threshold ~ conservatism_7pt_merged,
-                     d_01_blacks)
-
-summary(s1_t1_t_blacks)
-
-d_01_blacks |> 
-  ggplot(aes(x = conservatism_7pt_merged)) +
-  geom_density()
-
-d_01_blacks |> 
-  ggplot(aes(x = bias_threshold)) +
-  geom_density()
-
-performance::check_outliers(s1_t1_t_blacks)
-performance::check_normality(s1_t1_t_blacks)
-performance::check_heteroscedasticity(s1_t1_t_blacks)
-
-#** Run quantile regression as robustness check ####
-
-d_01_blacks |> 
-  ggplot(aes(x = conservatism_7pt_merged,
-             y = bias_threshold)) +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
+# Plot 
+d101 |>
+  filter(bias_target == "blacks") |> 
+  fun_plot_lm_rq(y_var = bias_threshold,
+                 x_var = conservatism_7pt_merged,
+                 colors = my_pal)
 
 
-
-s1_t1_t_blacks_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
-                        tau = seq(from = 0.1, 
-                                  to = 0.9, 
-                                  by = 0.1),
-                        data = d_01_blacks)
-
-summary(s1_t1_t_blacks_qr) %>% 
-  plot(parm = "conservatism_7pt_merged")
+fun_mod_summaries(sim_qrs$blacks)
 
 
-s1_t1_t_blacks_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.1,
-                          data = d_01_blacks)
+#  Compare Model fits 
+performance::compare_performance(sim_lms$blacks,
+                                 sim_qrs$blacks$t_0.1,
+                                 sim_qrs$blacks$t_0.2,
+                                 sim_qrs$blacks$t_0.5,
+                                 sim_qrs$blacks$t_0.7,
+                                 sim_qrs$blacks$t_0.9) 
 
-s1_t1_t_blacks_qr30 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.3,
-                          data = d_01_blacks)
-
-s1_t1_t_blacks_qr50 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.5,
-                          data = d_01_blacks)
-
-s1_t1_t_blacks_qr70 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.7,
-                          data = d_01_blacks)
-
-s1_t1_t_blacks_qr90 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                          tau = 0.9,
-                          data = d_01_blacks)
-
-
-#**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
 tbl_merge(
   tbls = list(
-    tbl_regression(s1_t1_t_blacks) |> 
+    tbl_regression(sim_lms$blacks) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_blacks_qr10) |> 
+    tbl_regression(sim_qrs$blacks$t_0.1) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_blacks_qr30) |> 
+    tbl_regression(sim_qrs$blacks$t_0.3) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_blacks_qr50) |> 
+    tbl_regression(sim_qrs$blacks$t_0.5) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_blacks_qr70) |> 
+    tbl_regression(sim_qrs$blacks$t_0.7) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_blacks_qr90) |> 
+    tbl_regression(sim_qrs$blacks$t_0.9) |> 
       bold_p()
   ),
   
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+  tab_spanner = my_tb_sp
 )
 
 
+#* Unknown as targets ####
 
-#** Compare Model fits ####
-performance::compare_performance(s1_t1_t_blacks,
-                                 s1_t1_t_blacks_qr10,
-                                 s1_t1_t_blacks_qr30,
-                                 s1_t1_t_blacks_qr50,
-                                 s1_t1_t_blacks_qr90,
-                                 s1_t1_t_blacks_qr90) |> plot()
+sim_lms$unknown 
 
-
-##* Unknown as targets ####
-
-###* Create the data set ####
-d_01_unknown<- d101 |> 
-  filter(bias_target == "unknown")
+# Check assumptions
+performance::check_outliers(sim_lms$unknown)
+performance::check_normality(sim_lms$unknown)
+performance::check_heteroscedasticity(sim_lms$unknown)
 
 
-#**Check model assumptions ####
+# Quantile regressions 
 
-s1_t1_t_unknown<- lm(bias_threshold ~ conservatism_7pt_merged,
-                     d_01_unknown)
-
-summary(s1_t1_t_unknown)
-
-d_01_unknown|> 
-  ggplot(aes(x = conservatism_7pt_merged)) +
-  geom_density()
-
-d_01_unknown|> 
-  ggplot(aes(x = bias_threshold)) +
-  geom_density()
-
-performance::check_outliers(s1_t1_t_unknown)
-performance::check_normality(s1_t1_t_unknown)
-performance::check_heteroscedasticity(s1_t1_t_unknown)
-
-#** Run quantile regression as robustness check ####
-
-d_01_unknown|> 
-  ggplot(aes(x = conservatism_7pt_merged,
-             y = bias_threshold)) +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  geom_quantile(quantiles = seq(0.1, 0.9, by = 0.1)) 
+# Plot 
+d101 |>
+  filter(bias_target == "unknown") |> 
+  fun_plot_lm_rq(y_var = bias_threshold,
+                 x_var = conservatism_7pt_merged,
+                 colors = my_pal)
 
 
-
-s1_t1_t_unknown_qr <- rq(bias_threshold ~ conservatism_7pt_merged,
-                         tau = seq(from = 0.1, 
-                                   to = 0.9, 
-                                   by = 0.1),
-                         data = d_01_unknown)
-
-summary(s1_t1_t_unknown_qr) %>% 
-  plot(parm = "conservatism_7pt_merged")
+fun_mod_summaries(sim_qrs$unknown)
 
 
-s1_t1_t_unknown_qr10 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                           tau = 0.1,
-                           data = d_01_unknown)
+#  Compare Model fits 
+performance::compare_performance(sim_lms$unknown,
+                                 sim_qrs$unknown$t_0.1,
+                                 sim_qrs$unknown$t_0.2,
+                                 sim_qrs$unknown$t_0.5,
+                                 sim_qrs$unknown$t_0.7,
+                                 sim_qrs$unknown$t_0.9) 
 
-s1_t1_t_unknown_qr30 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                           tau = 0.3,
-                           data = d_01_unknown)
-
-s1_t1_t_unknown_qr50 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                           tau = 0.5,
-                           data = d_01_unknown)
-
-s1_t1_t_unknown_qr70 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                           tau = 0.7,
-                           data = d_01_unknown)
-
-s1_t1_t_unknown_qr90 <- rq(bias_threshold ~ conservatism_7pt_merged,
-                           tau = 0.9,
-                           data = d_01_unknown)
-
-
-#**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
 tbl_merge(
   tbls = list(
-    tbl_regression(s1_t1_t_unknown) |> 
+    tbl_regression(sim_lms$unknown) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_unknown_qr10) |> 
+    tbl_regression(sim_qrs$unknown$t_0.1) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_unknown_qr30) |> 
+    tbl_regression(sim_qrs$unknown$t_0.3) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_unknown_qr50) |> 
+    tbl_regression(sim_qrs$unknown$t_0.5) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_unknown_qr70) |> 
+    tbl_regression(sim_qrs$unknown$t_0.7) |> 
       bold_p(),
     
-    tbl_regression(s1_t1_t_unknown_qr90) |> 
+    tbl_regression(sim_qrs$unknown$t_0.9) |> 
       bold_p()
   ),
   
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+  tab_spanner = my_tb_sp
 )
-
-
-#** Compare Model fits ####
-performance::compare_performance(s1_t1_t_unknown,
-                                 s1_t1_t_unknown_qr10,
-                                 s1_t1_t_unknown_qr30,
-                                 s1_t1_t_unknown_qr50,
-                                 s1_t1_t_unknown_qr90,
-                                 s1_t1_t_unknown_qr90) |> plot()
-
-
 
 #--------------------------------------------#
 #                                            #
@@ -809,7 +622,7 @@ performance::compare_performance(s1_t1_t_unknown,
 #* Women vs Men ####
 
 ## Simple regression ## 
-wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged_mean_ctrd,
             d101)
 
 summary(wm_lm)
@@ -824,7 +637,7 @@ performance::check_heteroscedasticity(wm_lm)
 ## Quantile regression ##
 
 # Run quantile regression from 0.1 to 0.9 quantile
-wm_qr <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
+wm_qr <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged_mean_ctrd,
             tau = seq(from = 0.1, 
                       to = 0.9, 
                       by = 0.1),
@@ -853,6 +666,7 @@ wm_qr70 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merge
 wm_qr90 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
               tau = 0.9,
               data = d101)
+
 
 
 #**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
@@ -897,9 +711,6 @@ performance::compare_performance(wm_lm,
 #--------------------------------------------#
 
 
-
-
-
 # Set variables for the function
 my_dv <- "bias_threshold"
 
@@ -930,7 +741,18 @@ emm_model_plots <- fun_em_plot(d101, my_dv, my_ivs, my_mod, my_steps_plot)
 
 emm_models$bias_target_men_vs_women
 
-emm_models$bias_target_men_vs_women$contrasts[599]
+# Extract contrasts for significance region
+
+# Use only single values, otherwise contrast will be adjusted
+
+# If you want the contrast for 4.79 from the conservatism scale
+# you have to use 380 -
+# 3xx because the values start from 1
+# x80 because the values from the seq start with 1.00, 
+
+emm_models$bias_target_men_vs_women$contrasts[379]
+emm_models$bias_target_men_vs_women$contrasts[380]
+emm_models$bias_target_men_vs_women$contrasts[381]
 
 emm_model_plots$bias_target_men_vs_women + 
   geom_vline(xintercept = 4.79,
@@ -940,6 +762,15 @@ emm_model_plots$bias_target_men_vs_women +
 #* Whites vs. Blacks ####
 
 emm_models$bias_target_whites_vs_blacks
+
+# Extract contrasts for significance region
+emm_models$bias_target_whites_vs_blacks$contrasts[242]
+emm_models$bias_target_whites_vs_blacks$contrasts[243]
+emm_models$bias_target_whites_vs_blacks$contrasts[244]
+
+emm_models$bias_target_whites_vs_blacks$contrasts[392]
+emm_models$bias_target_whites_vs_blacks$contrasts[393]
+emm_models$bias_target_whites_vs_blacks$contrasts[394]
 
 emm_model_plots$bias_target_whites_vs_blacks + 
   geom_vline(xintercept = 3.42,
@@ -951,6 +782,11 @@ emm_model_plots$bias_target_whites_vs_blacks +
 
 emm_models$bias_target_men_vs_unknown
 
+# Extract contrasts for significance region
+emm_models$bias_target_men_vs_unknown$contrasts[293]
+emm_models$bias_target_men_vs_unknown$contrasts[294]
+emm_models$bias_target_men_vs_unknown$contrasts[295]
+
 emm_model_plots$bias_target_men_vs_unknown + 
   geom_vline(xintercept = 3.93,
              alpha = .7) 
@@ -960,13 +796,24 @@ emm_model_plots$bias_target_men_vs_unknown +
 
 emm_models$bias_target_women_vs_unknown
 
+# Extract contrasts for significance region
+emm_models$bias_target_women_vs_unknown$contrasts[303]
+emm_models$bias_target_women_vs_unknown$contrasts[304]
+emm_models$bias_target_women_vs_unknown$contrasts[305]
+
 emm_model_plots$bias_target_women_vs_unknown + 
   geom_vline(xintercept = 4.03,
              alpha = .7) 
 
+
 #* Whites vs. Unknown ####
 
 emm_models$bias_target_whites_vs_unknown
+
+# Extract contrasts for significance region
+emm_models$bias_target_whites_vs_unknown$contrasts[262]
+emm_models$bias_target_whites_vs_unknown$contrasts[263]
+emm_models$bias_target_whites_vs_unknown$contrasts[264]
 
 emm_model_plots$bias_target_whites_vs_unknown + 
   geom_vline(xintercept = 3.62,
@@ -976,9 +823,16 @@ emm_model_plots$bias_target_whites_vs_unknown +
 
 emm_models$bias_target_blacks_vs_unknown
 
+
+# Extract contrasts for significance region
+emm_models$bias_target_blacks_vs_unknown$contrasts[383]
+emm_models$bias_target_blacks_vs_unknown$contrasts[384]
+emm_models$bias_target_blacks_vs_unknown$contrasts[385]
+
 emm_model_plots$bias_target_blacks_vs_unknown + 
   geom_vline(xintercept = 4.83,
              alpha = .7) 
+
 
 #--------------------------------------------#
 #                                            #
@@ -988,3 +842,73 @@ emm_model_plots$bias_target_blacks_vs_unknown +
 
 ##* Use the same data set as K & Z ####
 d201 <- d002[study_id_for_paper == "02"]
+
+
+# Set variables for the function
+my_dv <- "bias_threshold"
+
+my_ivs <- c(
+  "bias_target_liberals_vs_conservatives",
+  "bias_target_liberals_vs_unknown",
+  "bias_target_conservatives_vs_unknown")
+
+my_mod <- "conservatism_7pt_merged"
+
+# Create a list with the estimated marginal mean models
+emm_models_s2 <- fun_em(d201, my_dv, my_ivs, my_mod, my_steps)
+
+# Create a list with the estimated marginal mean model plots
+emm_model_plots_s2 <- fun_em_plot(d201, my_dv, my_ivs, my_mod, my_steps_plot)
+
+
+#* Liberals vs. conservatives ####
+
+emm_models_s2$bias_target_liberals_vs_conservatives
+
+# Extract contrasts for significance region
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[255]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[256]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[257]
+
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[255]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[256]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[257]
+
+# Plot
+emm_model_plots_s2$bias_target_liberals_vs_conservatives + 
+  geom_vline(xintercept = 3.55,
+             alpha = .7) +
+  geom_vline(xintercept = 5.69,
+             alpha = .7)
+
+
+#* Liberals vs. unknwon ####
+
+emm_models_s2$bias_target_liberals_vs_unknown
+
+# Extract contrasts for significance region
+emm_models_s2$bias_target_liberals_vs_unknown$contrasts[228]
+emm_models_s2$bias_target_liberals_vs_unknown$contrasts[229]
+emm_models_s2$bias_target_liberals_vs_unknown$contrasts[230]
+
+
+# Plot
+emm_model_plots_s2$bias_target_liberals_vs_unknown + 
+  geom_vline(xintercept = 3.28,
+             alpha = .7) 
+
+
+#* Conservatives vs. unknwon ####
+
+emm_models_s2$bias_target_conservatives_vs_unknown
+
+# Extract contrasts for significance region
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[09]
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[10]
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[11]
+
+
+# Plot
+emm_model_plots_s2$bias_target_conservatives_vs_unknown + 
+  geom_vline(xintercept = 1.09,
+             alpha = .7) 
