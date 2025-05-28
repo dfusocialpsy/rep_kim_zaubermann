@@ -99,8 +99,6 @@ d002[, .N] # N = 14,925
 #--------------------------------------------#
 
 
-
-
 ### Set a color palette ####
 # Colors for plots
 my_pal <- c(OLS = "#5e4fa2",
@@ -123,7 +121,10 @@ fun_mod_lin <- function(ds, dv, iv, targets) {
   mods <- list()
   
   # Loop over targets
-  for (target in seq_along(targets)) {
+  for (i in seq_along(targets)) {
+    
+    # Set the target value
+    target <- targets[i]
     
     # Set up formula
     formula = as.formula(paste(my_dv, "~", my_iv))
@@ -142,14 +143,53 @@ fun_mod_lin <- function(ds, dv, iv, targets) {
   return(mods)
 }
 
-# Set up a function for quantile regressions (no interaction)
+# Set up a function for simple linear models WITH interaction
+fun_mod_lin_wi <- function(ds, target_cols, dv, iv) {
+  
+  # Create an empty list to store models
+  mods <- list()
+  
+  # Loop over targets
+  for (i in seq_along(target_cols)) {
+    
+    # Set the target value
+    target <- target_cols[i]
+    
+    # Set up formula using the provided dv (dependent variable) and iv (independent variable)
+    formula <- as.formula(paste(dv, "~", target, "*", iv))
+    
+    # Subset the data for the current target
+    filtered_ds <- ds |> 
+      dplyr::select(all_of(target), # all_of is needed for "external" vector
+                    {{dv}},
+                    {{iv}}) |> 
+      
+      drop_na(all_of(target)) # Get rid of NAs
+    
+    model <- lm(formula, 
+                data = filtered_ds)
+    
+    
+    # Store all tau models for the current target in the mods list
+    mods[[target]] <- model
+  }
+  
+  return(mods)
+}
+
+
+# Set up a function for quantile models (no interaction)
+# Saves the models for EACH tau
 fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
   
   # Create an empty list to store models
   mods <- list()
   
   # Loop over targets
-  for (target in seq_along(targets)) {
+  for (i in seq_along(targets)) {
+    
+    # Set the target value
+    target <- targets[i]
     
     # Set up formula using the provided dv (dependent variable) and iv (independent variable)
     formula <- as.formula(paste(dv, "~", iv))
@@ -162,7 +202,11 @@ fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
     tau_models <- list()
     
     # Loop over taus
-    for (tau in seq_along(taus)) {
+    for (mt in seq_along(taus)) {
+      
+      # Set the tau value
+      tau <- taus[mt]
+      
       # Run the quantile regression model for the current tau
       model <- quantreg::rq(formula, 
                             data = filtered_ds, 
@@ -178,6 +222,94 @@ fun_mod_qr_ni <- function(ds, dv, iv, targets, taus) {
   
   return(mods)
 }
+
+# Set up a function for quantile models WITH interaction
+# Saves the models for EACH tau
+fun_mod_qr_wi_st <- function(ds, target_cols, dv, iv, taus) {
+  
+  # Create an empty list to store models
+  mods <- list()
+  
+  # Loop over targets
+  for (i in seq_along(target_cols)) {
+    
+    # Set the target value
+    target <- target_cols[i]
+    
+    # Set up formula using the provided dv (dependent variable) and iv (independent variable)
+    formula <- as.formula(paste(dv, "~", target, "*", iv))
+    
+    # Subset the data for the current target
+    filtered_ds <- ds |> 
+      dplyr::select(all_of(target), # all_of is needed for "external" vector
+                    {{dv}},
+                    {{iv}}) |> 
+      
+      drop_na(all_of(target)) # Get rid of NAs
+    
+    # Create an empty list to store models for each tau
+    tau_models <- list()
+    
+    # Loop over taus
+    for (mt in seq_along(taus)) {
+      
+      # Set the tau value
+      tau <- taus[mt]
+      # Run the quantile regression model for the current tau
+      model <- quantreg::rq(formula, 
+                            data = filtered_ds, 
+                            tau = tau)
+      
+      # Store the model for the current tau in the list
+      tau_models[[paste0("t_", tau)]] <- model
+    }
+    
+    # Store all tau models for the current target in the mods list
+    mods[[target]] <- tau_models
+  }
+  
+  return(mods)
+}
+
+# Set up a function for quantile models WITH interaction
+# Saves one model for ALL taus
+fun_mod_qr_wi <- function(ds, target_cols, dv, iv, taus) {
+  
+  # Create an empty list to store models
+  mods <- list()
+  
+  # Loop over targets
+  for (i in seq_along(target_cols)) {
+    
+    # Set the target value
+    target <- target_cols[i]
+    
+    # Set up formula using the provided dv (dependent variable) and iv (independent variable)
+    formula <- as.formula(paste(dv, "~", target, "*", iv))
+    
+    # Subset the data for the current target
+    filtered_ds <- ds |> 
+      dplyr::select(all_of(target), # all_of is needed for "external" vector
+                    {{dv}},
+                    {{iv}}) |> 
+      
+      drop_na(all_of(target)) # Get rid of NAs
+    
+    
+    
+    
+    model <- quantreg::rq(formula, 
+                          data = filtered_ds, 
+                          tau = taus)
+    
+    
+    # Store all tau models for the current target in the mods list
+    mods[[target]] <- model
+  }
+  
+  return(mods)
+}
+
 
 # Set up a function for plotting a linear model with accompanying quantile models
 fun_plot_lm_rq <- function(ds, y_var, x_var, colors = NULL) {
@@ -200,9 +332,69 @@ fun_plot_lm_rq <- function(ds, y_var, x_var, colors = NULL) {
 
     scale_color_manual(values = colors) +
     
+    labs(x = "Conservatism",
+         y = "Bias threshold") +
+    
     theme_bw() +
     theme(legend.title=element_blank()) 
 }
+
+# Set up a function for plotting quantile models WITH interactions
+fun_plot_qr_wi <- function(ds, target_cols, y_var, x_var, colors = NULL) {
+  
+  # Create an empty list for the output
+  plots <- list()
+  
+  # Loop over targets using seq_along
+  for (i in seq_along(target_cols)) {
+    
+    target <- target_cols[i]
+    
+    # Create plot
+    p <- ds |> 
+      dplyr::select(all_of(target), # all_of is needed for "external" vector
+                    {{y_var}},
+                    {{x_var}}) |> 
+      
+      drop_na(all_of(target)) # Get rid of NAs
+    
+    # Save model outputs in the list from the beginning
+    plots[[target]] <- p |> 
+      
+      ggplot(aes(x = {{x_var}}, 
+                 y = {{y_var}})) +
+      
+      geom_jitter(alpha = .3) +
+      
+      geom_quantile(quantiles = 0.1, aes(color = "Q10"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.2, aes(color = "Q20"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.3, aes(color = "Q30"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.4, aes(color = "Q40"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.5, aes(color = "Q50"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.6, aes(color = "Q60"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.7, aes(color = "Q70"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.8, aes(color = "Q80"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.9, aes(color = "Q90"), alpha = 0.8) +
+      
+      geom_smooth(method = "lm", se = FALSE, aes(color = "OLS"),
+                  linewidth = 1.5) +
+      
+      facet_wrap(as.formula(paste("~", target))) + # as.formula solves the problem, because (~ target), does not work
+      
+      
+      scale_color_manual(values = my_pal) +
+      
+      labs(x = "Conservatism - centered",
+           y = "Bias threshold") + 
+      
+      theme_bw() +
+      theme(legend.title=element_blank())
+    
+  }
+  
+  return(plots)
+}
+
 
 # Set up a function for model summaries for quantile regression
 fun_mod_summaries <- function(model_list) {
@@ -219,7 +411,11 @@ fun_em <- function(ds, dv, ivs, moderator, steps = NULL) {
   # List to store the results
   emms_mod_linear <- list()
   
-  for (iv in seq_along(ivs)) {
+  for (i in seq_along(ivs)) {
+    
+    # Set the iv value
+    iv <- ivs[i]
+    
     # This creates the formulas for the linear models based on the function input
     formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
     
@@ -255,7 +451,11 @@ fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
   # List to store the results
   emms_mod_plot <- list()
   
-  for (iv in seq_along(ivs)) {
+  for (i in seq_along(ivs)) {
+    
+    # Set the iv value
+    iv <- ivs[i]
+    
     # This creates the formulas for the linear models based on the function input
     formulars <- as.formula(paste(dv, "~", iv, "*", moderator))
     
@@ -288,6 +488,41 @@ fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
 }
 
 
+### For summary tables  ####
+
+# Set table spanners
+my_tb_sp <- c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+
+# Set up a function for summary tables - use with caution !!!
+
+fun_table_simple_models <- function(group) {
+  tbl_merge(
+    tbls = list(
+      tbl_regression(sim_lms[[group]]) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.1) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.3) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.5) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.7) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.9) |> bold_p()
+    ),
+    tab_spanner = my_tb_sp
+  )
+}
+
+fun_table_inter_models <- function(group) {
+  tbl_merge(
+    tbls = list(
+      tbl_regression(int_lms[[group]]) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.1) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.3) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.5) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.7) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.9) |> bold_p()
+    ),
+    tab_spanner = my_tb_sp
+  )
+}
+
 #--------------------------------------------#
 #                                            #
 ####        Study 1 - Correlations        ####
@@ -311,8 +546,7 @@ my_targets = c("women",
 
 my_dv = "bias_threshold"
 
-# Set table spanners
-my_tb_sp <- c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+
 
 #* Run linear models ####
 sim_lms <- fun_mod_lin(d101,
@@ -362,29 +596,7 @@ performance::compare_performance(sim_lms$women,
                                  sim_qrs$women$t_0.9) #|> plot()
 
 #  Create a table summary for ols, q10, q30, q50, q70, q90 
-tbl_merge(
-  tbls = list(
-    tbl_regression(sim_lms$women) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$women$t_0.1) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$women$t_0.3) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$women$t_0.5) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$women$t_0.7) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$women$t_0.9) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = my_tb_sp
-)
+fun_table_simple_models("women")
 
 
 
@@ -420,29 +632,7 @@ performance::compare_performance(sim_lms$men,
                                  sim_qrs$men$t_0.9) 
 
 #  Create a table summary for ols, q10, q30, q50, q70, q90 
-tbl_merge(
-  tbls = list(
-    tbl_regression(sim_lms$men) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$men$t_0.1) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$men$t_0.3) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$men$t_0.5) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$men$t_0.7) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$men$t_0.9) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = my_tb_sp
-)
+fun_table_simple_models("men")
 
 #* Whites as targets ####
 
@@ -476,31 +666,9 @@ performance::compare_performance(sim_lms$whites,
                                  sim_qrs$whites$t_0.9) 
 
 #  Create a table summary for ols, q10, q30, q50, q70, q90 
-tbl_merge(
-  tbls = list(
-    tbl_regression(sim_lms$whites) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$whites$t_0.1) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$whites$t_0.3) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$whites$t_0.5) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$whites$t_0.7) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$whites$t_0.9) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = my_tb_sp
-)
+fun_table_simple_models("whites")
 
-#* Balcks as targets ####
+#* Blacks as targets ####
 
 sim_lms$blacks 
 
@@ -532,29 +700,7 @@ performance::compare_performance(sim_lms$blacks,
                                  sim_qrs$blacks$t_0.9) 
 
 #  Create a table summary for ols, q10, q30, q50, q70, q90 
-tbl_merge(
-  tbls = list(
-    tbl_regression(sim_lms$blacks) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$blacks$t_0.1) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$blacks$t_0.3) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$blacks$t_0.5) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$blacks$t_0.7) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$blacks$t_0.9) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = my_tb_sp
-)
+fun_table_simple_models("blacks")
 
 
 #* Unknown as targets ####
@@ -589,29 +735,8 @@ performance::compare_performance(sim_lms$unknown,
                                  sim_qrs$unknown$t_0.9) 
 
 #  Create a table summary for ols, q10, q30, q50, q70, q90 
-tbl_merge(
-  tbls = list(
-    tbl_regression(sim_lms$unknown) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$unknown$t_0.1) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$unknown$t_0.3) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$unknown$t_0.5) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$unknown$t_0.7) |> 
-      bold_p(),
-    
-    tbl_regression(sim_qrs$unknown$t_0.9) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = my_tb_sp
-)
+fun_table_simple_models("unknown")
+
 
 #--------------------------------------------#
 #                                            #
@@ -619,89 +744,240 @@ tbl_merge(
 #                                            #
 #--------------------------------------------#
 
-#* Women vs Men ####
+# Set parameters for the function (fun_mod_lin)
 
-## Simple regression ## 
-wm_lm <- lm(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged_mean_ctrd,
-            d101)
+# Set variables for the functions
+my_dv <- "bias_threshold"
 
-summary(wm_lm)
+my_ivs <- c(
+  "bias_target_men_vs_women",
+  "bias_target_whites_vs_blacks",
+  "bias_target_men_vs_unknown",
+  "bias_target_women_vs_unknown",
+  "bias_target_whites_vs_unknown",
+  "bias_target_blacks_vs_unknown")
+
+my_mod <- "conservatism_7pt_merged_mean_ctrd"
+
+
+my_taus <- seq(from = 0.1, to = 0.9, by = 0.1)
+
+
+
+#* Run linear models  with interaction ####
+int_lms <- fun_mod_lin_wi(d101,
+                          my_ivs,
+                          my_dv,
+                          my_mod)
+
+#* Run quantile models  with interaction as robustness check ####
+
+# Get an output for each tau separately - this is needed for summary table
+int_qrs <- fun_mod_qr_wi_st(d101,
+                            my_ivs,
+                            my_dv,
+                            my_mod,
+                            my_taus)
+
+int_qrs_summary <- fun_mod_qr_wi(d101,
+                                 my_ivs,
+                                 my_dv,
+                                 my_mod,
+                                 my_taus)
+
+#* Create plots for quantile models ####
+
+# Use the column names from the data set, and my ivs only from the vector !!!
+int_qrs_plots <- fun_plot_qr_wi(d101,
+                                my_ivs,
+                                bias_threshold,
+                                conservatism_7pt_merged_mean_ctrd,
+                                my_pal)
+
+
+
+#* Women vs. Men ####
+
+summary(int_lms$bias_target_men_vs_women)
 
 # Check Assumptions
-performance::check_model(wm_lm)
-
-performance::check_outliers(wm_lm)
-performance::check_normality(wm_lm)
-performance::check_heteroscedasticity(wm_lm)
+performance::check_outliers(int_lms$bias_target_men_vs_women)
+performance::check_normality(int_lms$bias_target_men_vs_women)
+performance::check_heteroscedasticity(int_lms$bias_target_men_vs_women)
 
 ## Quantile regression ##
 
-# Run quantile regression from 0.1 to 0.9 quantile
-wm_qr <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged_mean_ctrd,
-            tau = seq(from = 0.1, 
-                      to = 0.9, 
-                      by = 0.1),
-            data = d101)
+# Plot 
+int_qrs_plots$bias_target_men_vs_women
 
-summary(wm_qr,
-        se = "boot") 
+# Model
+int_qrs_summary$bias_target_men_vs_women |> 
+  summary(se = "boot")
 
 
-wm_qr10 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-              tau = 0.1,
-              data = d101)
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_men_vs_women,
+                                 int_qrs$bias_target_men_vs_women$t_0.1,
+                                 int_qrs$bias_target_men_vs_women$t_0.2,
+                                 int_qrs$bias_target_men_vs_women$t_0.5,
+                                 int_qrs$bias_target_men_vs_women$t_0.7,
+                                 int_qrs$bias_target_men_vs_women$t_0.9) |> plot()
 
-wm_qr30 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-              tau = 0.3,
-              data = d101)
-
-wm_qr50 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-              tau = 0.5,
-              data = d101)
-
-wm_qr70 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-              tau = 0.7,
-              data = d101)
-
-wm_qr90 <- rq(bias_threshold ~ bias_target_men_vs_women * conservatism_7pt_merged,
-              tau = 0.9,
-              data = d101)
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_men_vs_women")
 
 
+#* Blacks vs. Whites ####
 
-#**  Create a table summary for ols, q10, q30, q50, q70, q90 ####
-tbl_merge(
-  tbls = list(
-    tbl_regression(wm_lm) |> 
-      bold_p(),
-    
-    tbl_regression(wm_qr10) |> 
-      bold_p(),
-    
-    tbl_regression(wm_qr30) |> 
-      bold_p(),
-    
-    tbl_regression(wm_qr50) |> 
-      bold_p(),
-    
-    tbl_regression(wm_qr70) |> 
-      bold_p(),
-    
-    tbl_regression(wm_qr90) |> 
-      bold_p()
-  ),
-  
-  tab_spanner = c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
-)
+summary(int_lms$bias_target_whites_vs_blacks)
+
+# Check Assumptions
+performance::check_outliers(int_lms$bias_target_whites_vs_blacks)
+performance::check_normality(int_lms$bias_target_whites_vs_blacks)
+performance::check_heteroscedasticity(int_lms$bias_target_whites_vs_blacks)
+
+## Quantile regression ##
+
+# Plot 
+int_qrs_plots$bias_target_whites_vs_blacks
+
+# Model
+int_qrs_summary$bias_target_whites_vs_blacks |> 
+  summary(se = "boot")
 
 
-#** Compare Model fits ####
-performance::compare_performance(wm_lm,
-                                 wm_qr10,
-                                 wm_qr30,
-                                 wm_qr50,
-                                 wm_qr90,
-                                 wm_qr90) 
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_whites_vs_blacks,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.1,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.2,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.5,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.7,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.9) |> plot()
+
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_whites_vs_blacks")
+
+#* Men vs. Unknown ####
+
+summary(int_lms$bias_target_men_vs_unknown)
+
+# Check Assumptions
+performance::check_outliers(int_lms$bias_target_men_vs_unknown)
+performance::check_normality(int_lms$bias_target_men_vs_unknown)
+performance::check_heteroscedasticity(int_lms$bias_target_men_vs_unknown)
+
+## Quantile regression ##
+
+# Plot 
+int_qrs_plots$bias_target_men_vs_unknown
+
+# Model
+int_qrs_summary$bias_target_men_vs_unknown |> 
+  summary(se = "boot")
+
+
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_men_vs_unknown,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.1,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.5,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.9) |> plot()
+
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_men_vs_unknown")
+
+
+#* Women vs. Unknown ####
+
+summary(int_lms$bias_target_women_vs_unknown)
+
+# Check Assumptions
+performance::check_outliers(int_lms$bias_target_women_vs_unknown)
+performance::check_normality(int_lms$bias_target_women_vs_unknown)
+performance::check_heteroscedasticity(int_lms$bias_target_women_vs_unknown)
+
+## Quantile regression ##
+
+# Plot 
+int_qrs_plots$bias_target_women_vs_unknown
+
+# Model
+int_qrs_summary$bias_target_women_vs_unknown |> 
+  summary(se = "boot")
+
+
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_women_vs_unknown,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.1,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.5,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.9) |> plot()
+
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_women_vs_unknown")
+
+
+#* Whites vs. Unknown ####
+
+summary(int_lms$bias_target_whites_vs_unknown)
+
+# Check Assumptions
+performance::check_outliers(int_lms$bias_target_whites_vs_unknown)
+performance::check_normality(int_lms$bias_target_whites_vs_unknown)
+performance::check_heteroscedasticity(int_lms$bias_target_whites_vs_unknown)
+
+## Quantile regression ##
+
+# Plot 
+int_qrs_plots$bias_target_whites_vs_unknown
+
+# Model
+int_qrs_summary$bias_target_whites_vs_unknown |> 
+  summary(se = "boot")
+
+
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_whites_vs_unknown,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.1,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.5,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.9) |> plot()
+
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_whites_vs_unknown")
+
+#* Blacks vs. Unknown ####
+
+summary(int_lms$bias_target_blacks_vs_unknown)
+
+# Check Assumptions
+performance::check_outliers(int_lms$bias_target_blacks_vs_unknown)
+performance::check_normality(int_lms$bias_target_blacks_vs_unknown)
+performance::check_heteroscedasticity(int_lms$bias_target_blacks_vs_unknown)
+
+## Quantile regression ##
+
+# Plot 
+int_qrs_plots$bias_target_blacks_vs_unknown
+
+# Model
+int_qrs_summary$bias_target_blacks_vs_unknown |> 
+  summary(se = "boot")
+
+
+#  Compare Model fits 
+performance::compare_performance(int_lms$bias_target_blacks_vs_unknown,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.1,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.5,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.9) |> plot()
+
+#  Create a table summary for ols, q10, q30, q50, q70, q90 
+fun_table_inter_models("bias_target_blacks_vs_unknown")
 
 
 #--------------------------------------------#
@@ -737,9 +1013,7 @@ emm_models <- fun_em(d101, my_dv, my_ivs, my_mod, my_steps)
 emm_model_plots <- fun_em_plot(d101, my_dv, my_ivs, my_mod, my_steps_plot)
 
 
-#* Women vs Men ####
-
-emm_models$bias_target_men_vs_women
+#* Women vs. Men ####
 
 # Extract contrasts for significance region
 
@@ -759,9 +1033,7 @@ emm_model_plots$bias_target_men_vs_women +
              alpha = .7) 
 
 
-#* Whites vs. Blacks ####
-
-emm_models$bias_target_whites_vs_blacks
+#* Blacks vs. Whites ####
 
 # Extract contrasts for significance region
 emm_models$bias_target_whites_vs_blacks$contrasts[242]
@@ -780,8 +1052,6 @@ emm_model_plots$bias_target_whites_vs_blacks +
 
 #* Men vs. Unknown ####
 
-emm_models$bias_target_men_vs_unknown
-
 # Extract contrasts for significance region
 emm_models$bias_target_men_vs_unknown$contrasts[293]
 emm_models$bias_target_men_vs_unknown$contrasts[294]
@@ -793,8 +1063,6 @@ emm_model_plots$bias_target_men_vs_unknown +
 
 
 #* Women vs. Unknown ####
-
-emm_models$bias_target_women_vs_unknown
 
 # Extract contrasts for significance region
 emm_models$bias_target_women_vs_unknown$contrasts[303]
@@ -808,8 +1076,6 @@ emm_model_plots$bias_target_women_vs_unknown +
 
 #* Whites vs. Unknown ####
 
-emm_models$bias_target_whites_vs_unknown
-
 # Extract contrasts for significance region
 emm_models$bias_target_whites_vs_unknown$contrasts[262]
 emm_models$bias_target_whites_vs_unknown$contrasts[263]
@@ -819,10 +1085,8 @@ emm_model_plots$bias_target_whites_vs_unknown +
   geom_vline(xintercept = 3.62,
              alpha = .7) 
 
+
 #* Blacks vs. Unknown ####
-
-emm_models$bias_target_blacks_vs_unknown
-
 
 # Extract contrasts for significance region
 emm_models$bias_target_blacks_vs_unknown$contrasts[383]
@@ -863,8 +1127,6 @@ emm_model_plots_s2 <- fun_em_plot(d201, my_dv, my_ivs, my_mod, my_steps_plot)
 
 #* Liberals vs. conservatives ####
 
-emm_models_s2$bias_target_liberals_vs_conservatives
-
 # Extract contrasts for significance region
 emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[255]
 emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[256]
@@ -882,9 +1144,8 @@ emm_model_plots_s2$bias_target_liberals_vs_conservatives +
              alpha = .7)
 
 
-#* Liberals vs. unknwon ####
+#* Liberals vs. unknown ####
 
-emm_models_s2$bias_target_liberals_vs_unknown
 
 # Extract contrasts for significance region
 emm_models_s2$bias_target_liberals_vs_unknown$contrasts[228]
@@ -898,9 +1159,7 @@ emm_model_plots_s2$bias_target_liberals_vs_unknown +
              alpha = .7) 
 
 
-#* Conservatives vs. unknwon ####
-
-emm_models_s2$bias_target_conservatives_vs_unknown
+#* Conservatives vs. unknown ####
 
 # Extract contrasts for significance region
 emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[09]
