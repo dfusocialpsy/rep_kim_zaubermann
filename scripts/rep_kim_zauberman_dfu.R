@@ -103,13 +103,9 @@ d002[, .N] # N = 14,925
 # Colors for plots
 my_pal <- c(OLS = "#5e4fa2",
             Q10 = "#3288bd",
-            Q20 = "#fee08b",
-            Q30 = "#e6f598",
-            Q40 = "#abdda4",
+            Q25 = "#abdda4",
             Q50 = "#66c2a5",
-            Q60 = "#fdae61",
-            Q70 = "#f46d43",
-            Q80 = "#d53e4f",
+            Q75 = "#f46d43",
             Q90 = "#9e0142")
 
 ### Functions ####
@@ -321,13 +317,9 @@ fun_plot_lm_rq <- function(ds, y_var, x_var, colors = NULL) {
                 linewidth = 1.5) +
     
     geom_quantile(quantiles = 0.1, aes(color = "Q10"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.2, aes(color = "Q20"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.3, aes(color = "Q30"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.4, aes(color = "Q40"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.25, aes(color = "Q25"), alpha = 0.8) +
     geom_quantile(quantiles = 0.5, aes(color = "Q50"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.6, aes(color = "Q60"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.7, aes(color = "Q70"), alpha = 0.8) +
-    geom_quantile(quantiles = 0.8, aes(color = "Q80"), alpha = 0.8) +
+    geom_quantile(quantiles = 0.75, aes(color = "Q75"), alpha = 0.8) +
     geom_quantile(quantiles = 0.9, aes(color = "Q90"), alpha = 0.8) +
 
     scale_color_manual(values = colors) +
@@ -367,13 +359,9 @@ fun_plot_qr_wi <- function(ds, target_cols, y_var, x_var, colors = NULL) {
       geom_jitter(alpha = .3) +
       
       geom_quantile(quantiles = 0.1, aes(color = "Q10"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.2, aes(color = "Q20"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.3, aes(color = "Q30"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.4, aes(color = "Q40"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.25, aes(color = "Q25"), alpha = 0.8) +
       geom_quantile(quantiles = 0.5, aes(color = "Q50"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.6, aes(color = "Q60"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.7, aes(color = "Q70"), alpha = 0.8) +
-      geom_quantile(quantiles = 0.8, aes(color = "Q80"), alpha = 0.8) +
+      geom_quantile(quantiles = 0.75, aes(color = "Q75"), alpha = 0.8) +
       geom_quantile(quantiles = 0.9, aes(color = "Q90"), alpha = 0.8) +
       
       geom_smooth(method = "lm", se = FALSE, aes(color = "OLS"),
@@ -491,7 +479,7 @@ fun_em_plot <- function(ds, dv, ivs, moderator, steps = NULL) {
 ### For summary tables  ####
 
 # Set table spanners
-my_tb_sp <- c("OLS", "QR 10%", "QR 30%", "QR 50", "QR 70%", "QR90")
+my_tb_sp <- c("OLS", "QR 10", "QR 25", "QR 50", "QR 75", "QR 90")
 
 # Set up a function for summary tables - use with caution !!!
 
@@ -500,9 +488,9 @@ fun_table_simple_models <- function(group) {
     tbls = list(
       tbl_regression(sim_lms[[group]]) |> bold_p(),
       tbl_regression(sim_qrs[[group]]$t_0.1) |> bold_p(),
-      tbl_regression(sim_qrs[[group]]$t_0.3) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.25) |> bold_p(),
       tbl_regression(sim_qrs[[group]]$t_0.5) |> bold_p(),
-      tbl_regression(sim_qrs[[group]]$t_0.7) |> bold_p(),
+      tbl_regression(sim_qrs[[group]]$t_0.75) |> bold_p(),
       tbl_regression(sim_qrs[[group]]$t_0.9) |> bold_p()
     ),
     tab_spanner = my_tb_sp
@@ -514,9 +502,9 @@ fun_table_inter_models <- function(group) {
     tbls = list(
       tbl_regression(int_lms[[group]]) |> bold_p(),
       tbl_regression(int_qrs[[group]]$t_0.1) |> bold_p(),
-      tbl_regression(int_qrs[[group]]$t_0.3) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.25) |> bold_p(),
       tbl_regression(int_qrs[[group]]$t_0.5) |> bold_p(),
-      tbl_regression(int_qrs[[group]]$t_0.7) |> bold_p(),
+      tbl_regression(int_qrs[[group]]$t_0.75) |> bold_p(),
       tbl_regression(int_qrs[[group]]$t_0.9) |> bold_p()
     ),
     tab_spanner = my_tb_sp
@@ -536,16 +524,17 @@ d101 <- d002[study_id_for_paper == "01"]
 
 # Set parameters for the function (fun_mod_lin)
 
-my_iv = "conservatism_7pt_merged"
+my_iv <- "conservatism_7pt_merged"
 
-my_targets = c("women",
+my_targets <-  c("women",
                "men",
                "whites",
                "blacks",
                "unknown")
 
-my_dv = "bias_threshold"
+my_dv <-  "bias_threshold"
 
+my_taus <- c(0.10, 0.25, 0.5, 0.75, 0.9)
 
 
 #* Run linear models ####
@@ -559,9 +548,7 @@ sim_qrs <- fun_mod_qr_ni(d101,
                          my_dv,
                          my_iv,
                          my_targets,
-                         seq(from = 0.1,
-                             to = 0.9,
-                             by = 0.1))
+                         my_taus)
 
 
 #* Women as targets ####
@@ -590,12 +577,12 @@ fun_mod_summaries(sim_qrs$women)
 #  Compare Model fits 
 performance::compare_performance(sim_lms$women,
                                  sim_qrs$women$t_0.1,
-                                 sim_qrs$women$t_0.2,
+                                 sim_qrs$women$t_0.25,
                                  sim_qrs$women$t_0.5,
-                                 sim_qrs$women$t_0.7,
+                                 sim_qrs$women$t_0.75,
                                  sim_qrs$women$t_0.9) #|> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_simple_models("women")
 
 
@@ -626,12 +613,12 @@ fun_mod_summaries(sim_qrs$men)
 #  Compare Model fits 
 performance::compare_performance(sim_lms$men,
                                  sim_qrs$men$t_0.1,
-                                 sim_qrs$men$t_0.2,
+                                 sim_qrs$men$t_0.25,
                                  sim_qrs$men$t_0.5,
-                                 sim_qrs$men$t_0.7,
+                                 sim_qrs$men$t_0.75,
                                  sim_qrs$men$t_0.9) 
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_simple_models("men")
 
 #* Whites as targets ####
@@ -660,12 +647,12 @@ fun_mod_summaries(sim_qrs$whites)
 #  Compare Model fits 
 performance::compare_performance(sim_lms$whites,
                                  sim_qrs$whites$t_0.1,
-                                 sim_qrs$whites$t_0.2,
+                                 sim_qrs$whites$t_0.25,
                                  sim_qrs$whites$t_0.5,
-                                 sim_qrs$whites$t_0.7,
+                                 sim_qrs$whites$t_0.75,
                                  sim_qrs$whites$t_0.9) 
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_simple_models("whites")
 
 #* Blacks as targets ####
@@ -694,12 +681,12 @@ fun_mod_summaries(sim_qrs$blacks)
 #  Compare Model fits 
 performance::compare_performance(sim_lms$blacks,
                                  sim_qrs$blacks$t_0.1,
-                                 sim_qrs$blacks$t_0.2,
+                                 sim_qrs$blacks$t_0.25,
                                  sim_qrs$blacks$t_0.5,
-                                 sim_qrs$blacks$t_0.7,
+                                 sim_qrs$blacks$t_0.75,
                                  sim_qrs$blacks$t_0.9) 
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_simple_models("blacks")
 
 
@@ -729,12 +716,12 @@ fun_mod_summaries(sim_qrs$unknown)
 #  Compare Model fits 
 performance::compare_performance(sim_lms$unknown,
                                  sim_qrs$unknown$t_0.1,
-                                 sim_qrs$unknown$t_0.2,
+                                 sim_qrs$unknown$t_0.25,
                                  sim_qrs$unknown$t_0.5,
-                                 sim_qrs$unknown$t_0.7,
+                                 sim_qrs$unknown$t_0.75,
                                  sim_qrs$unknown$t_0.9) 
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_simple_models("unknown")
 
 
@@ -760,7 +747,7 @@ my_ivs <- c(
 my_mod <- "conservatism_7pt_merged_mean_ctrd"
 
 
-my_taus <- seq(from = 0.1, to = 0.9, by = 0.1)
+my_taus <- c(0.10, 0.25, 0.5, 0.75, 0.9)
 
 
 
@@ -818,12 +805,12 @@ int_qrs_summary$bias_target_men_vs_women |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_men_vs_women,
                                  int_qrs$bias_target_men_vs_women$t_0.1,
-                                 int_qrs$bias_target_men_vs_women$t_0.2,
+                                 int_qrs$bias_target_men_vs_women$t_0.25,
                                  int_qrs$bias_target_men_vs_women$t_0.5,
-                                 int_qrs$bias_target_men_vs_women$t_0.7,
+                                 int_qrs$bias_target_men_vs_women$t_0.75,
                                  int_qrs$bias_target_men_vs_women$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_men_vs_women")
 
 
@@ -849,12 +836,12 @@ int_qrs_summary$bias_target_whites_vs_blacks |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_whites_vs_blacks,
                                  int_qrs$bias_target_whites_vs_blacks$t_0.1,
-                                 int_qrs$bias_target_whites_vs_blacks$t_0.2,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.25,
                                  int_qrs$bias_target_whites_vs_blacks$t_0.5,
-                                 int_qrs$bias_target_whites_vs_blacks$t_0.7,
+                                 int_qrs$bias_target_whites_vs_blacks$t_0.75,
                                  int_qrs$bias_target_whites_vs_blacks$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_whites_vs_blacks")
 
 #* Men vs. Unknown ####
@@ -879,12 +866,12 @@ int_qrs_summary$bias_target_men_vs_unknown |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_men_vs_unknown,
                                  int_qrs$bias_target_men_vs_unknown$t_0.1,
-                                 int_qrs$bias_target_men_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.25,
                                  int_qrs$bias_target_men_vs_unknown$t_0.5,
-                                 int_qrs$bias_target_men_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_men_vs_unknown$t_0.75,
                                  int_qrs$bias_target_men_vs_unknown$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_men_vs_unknown")
 
 
@@ -910,12 +897,12 @@ int_qrs_summary$bias_target_women_vs_unknown |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_women_vs_unknown,
                                  int_qrs$bias_target_women_vs_unknown$t_0.1,
-                                 int_qrs$bias_target_women_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.25,
                                  int_qrs$bias_target_women_vs_unknown$t_0.5,
-                                 int_qrs$bias_target_women_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_women_vs_unknown$t_0.75,
                                  int_qrs$bias_target_women_vs_unknown$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_women_vs_unknown")
 
 
@@ -941,12 +928,12 @@ int_qrs_summary$bias_target_whites_vs_unknown |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_whites_vs_unknown,
                                  int_qrs$bias_target_whites_vs_unknown$t_0.1,
-                                 int_qrs$bias_target_whites_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.25,
                                  int_qrs$bias_target_whites_vs_unknown$t_0.5,
-                                 int_qrs$bias_target_whites_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_whites_vs_unknown$t_0.75,
                                  int_qrs$bias_target_whites_vs_unknown$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_whites_vs_unknown")
 
 #* Blacks vs. Unknown ####
@@ -971,12 +958,12 @@ int_qrs_summary$bias_target_blacks_vs_unknown |>
 #  Compare Model fits 
 performance::compare_performance(int_lms$bias_target_blacks_vs_unknown,
                                  int_qrs$bias_target_blacks_vs_unknown$t_0.1,
-                                 int_qrs$bias_target_blacks_vs_unknown$t_0.2,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.25,
                                  int_qrs$bias_target_blacks_vs_unknown$t_0.5,
-                                 int_qrs$bias_target_blacks_vs_unknown$t_0.7,
+                                 int_qrs$bias_target_blacks_vs_unknown$t_0.75,
                                  int_qrs$bias_target_blacks_vs_unknown$t_0.9) |> plot()
 
-#  Create a table summary for ols, q10, q30, q50, q70, q90 
+#  Create a table summary for ols, q10, q25, q50, q75, q90 
 fun_table_inter_models("bias_target_blacks_vs_unknown")
 
 
