@@ -1,0 +1,7 @@
+"","x","target","n","mean","sd","median","r","ci_low","ci_upp","p","target1_contrast","target2_contrast","moderator","rsq_no_int","rsq_int","rsq_chnge","f","p_comp"
+"1",1,"men",235,74,16,76,-0.14,-0.26,-0.01,"0.038","men","women","conservatism",0.033,0.066,0.034,16.3,"<0.001"
+"2",2,"women",221,68,15,62,0.24,0.11,0.36,"<0.001","whites","blacks","conservatism",0.002,0.048,0.047,21.5,"<0.001"
+"3",3,"whites",217,73,16,70,-0.19,-0.31,-0.05,"0.006","men","unknown","conservatism",0.01,0.018,0.008,3.8,"0.053"
+"4",4,"blacks",227,73,17,70,0.25,0.12,0.36,"<0.001","women","unknown","conservatism",0.029,0.037,0.008,3.4,"0.064"
+"5",5,"unknown",208,71,16,62,0.05,-0.09,0.19,"0.468","whites","unknown","conservatism",0.008,0.022,0.014,6,"0.015"
+"6",6,"",NA,NA,NA,NA,NA,NA,NA,"","blacks","unknown","conservatism",0.027,0.036,0.009,4.2,"0.042"
