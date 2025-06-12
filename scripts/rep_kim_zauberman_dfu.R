@@ -1169,7 +1169,7 @@ my_mod_2 <- "conservatism_7pt_merged_mean_ctrd"
 
 
 #* Run linear models  with interaction ####
-int_lms_2_2 <- fun_mod_lin_wi(d201,
+int_lms_2 <- fun_mod_lin_wi(d201,
                           my_ivs_2,
                           my_dv_2,
                           my_mod_2)
@@ -1177,13 +1177,13 @@ int_lms_2_2 <- fun_mod_lin_wi(d201,
 #* Run quantile models  with interaction as robustness check ####
 
 # Get an output for each tau separately - this is needed for summary table
-int_qrs_2_2 <- fun_mod_qr_wi_st(d201,
+int_qrs_2 <- fun_mod_qr_wi_st(d201,
                             my_ivs_2,
                             my_dv_2,
                             my_mod_2,
                             my_taus)
 
-int_qrs_2_2_summary <- fun_mod_qr_wi(d201,
+int_qrs_2_summary <- fun_mod_qr_wi(d201,
                                  my_ivs_2,
                                  my_dv_2,
                                  my_mod_2,
@@ -1292,11 +1292,27 @@ performance::compare_performance(int_lms_2$bias_target_conservatives_vs_unknown,
 #                                            #
 #--------------------------------------------#
 
+# Set variables for the function
+my_dv_2 <- "bias_threshold"
+
+my_ivs_2 <- c(
+  "bias_target_liberals_vs_conservatives",
+  "bias_target_liberals_vs_unknown",
+  "bias_target_conservatives_vs_unknown")
+
+my_mod_f_2 <- "conservatism_7pt_merged"
+
+
+my_steps <- seq(from = 1, to = 7, by = 0.01)
+
+my_steps_plot <- seq(from = 1, to = 7, by = 0.1)
+
+
 # Create a list with the estimated marginal mean models
-emm_models_s2 <- fun_em(d201, my_dv, my_ivs, my_mod_f, my_steps)
+emm_models_s2 <- fun_em(d201, my_dv_2, my_ivs_2, my_mod_f_2, my_steps)
 
 # Create a list with the estimated marginal mean model plots
-emm_model_plots_s2 <- fun_em_plot(d201, my_dv, my_ivs, my_mod_f, my_steps_plot)
+emm_model_plots_s2 <- fun_em_plot(d201, my_dv_2, my_ivs_2, my_mod_f_2, my_steps_plot)
 
 
 #* Liberals vs. conservatives ####
@@ -1306,9 +1322,9 @@ emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[255]
 emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[256]
 emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[257]
 
-emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[255]
-emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[256]
-emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[257]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[469]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[470]
+emm_models_s2$bias_target_liberals_vs_conservatives$contrasts[471]
 
 # Plot
 emm_model_plots_s2$bias_target_liberals_vs_conservatives + 
@@ -1336,10 +1352,11 @@ emm_model_plots_s2$bias_target_liberals_vs_unknown +
 #* Conservatives vs. unknown ####
 
 # Extract contrasts for significance region
-emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[09]
 emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[10]
 emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[11]
-
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[12]
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[13]
+emm_models_s2$bias_target_conservatives_vs_unknown$contrasts[14]
 
 # Plot
 emm_model_plots_s2$bias_target_conservatives_vs_unknown + 
