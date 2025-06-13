@@ -2283,8 +2283,8 @@ ggplot(cor_distributions_plot, aes(x = r)) +
   geom_density(fill = "steelblue", alpha = 0.6) +
   geom_vline(aes(xintercept = r_original), color = "red", linetype = "dashed", linewidth = 0.8) +
   facet_wrap(~ bias_target) +
-  labs(title = "Robustheit der Korrelationen in Subsamples",
-       x = "Korrelationskoeffizient", y = "Dichte") +
+  labs(title = "Distribution of correlation coefficients for 1000 random subsamples (50%)",
+       x = "Correlation", y = "Density") +
   theme_minimal()
 
 
