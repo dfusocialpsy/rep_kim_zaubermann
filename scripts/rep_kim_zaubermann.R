@@ -1568,7 +1568,7 @@ print(fig3_mod_long)
 
 d101 <- 
   d101 %>%
-  mutate(across(moderators, ~as.numeric(scale(.)),.names = "{.col}_scl"))
+  mutate(across(all_of(moderators), ~as.numeric(scale(.)),.names = "{.col}_scl"))
 
 moderators_scl <-
   paste0(moderators,"_scl")
@@ -2033,7 +2033,7 @@ print(fig4_mod_long)
 
 d201 <- 
   d201 %>%
-  mutate(across(moderators_stdy2, ~as.numeric(scale(.)),.names = "{.col}_scl"))
+  mutate(across(all_of(moderators_stdy2), ~as.numeric(scale(.)),.names = "{.col}_scl"))
 
 moderators_scl_stdy2 <-
   paste0(moderators_stdy2,"_scl")
@@ -2219,10 +2219,11 @@ results_stdy2_df %>%
 
 #--------------------------------------------#
 #                                            #
-####             Meta Analysis            ####
+####             Meta-Analysis            ####
 #                                            #
 #--------------------------------------------#
 
+#* Grouped Un-weighted Correlations for Participants who passed / didn't pass inclusion criteria ####
 d003 %>%
   group_by(bias_target,passed_prereg_or_similar_criteria) %>%
   summarise(n = n(),
@@ -2239,9 +2240,69 @@ d003 %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("condensed", "striped")) %>%
   column_spec(2,width = "10em")
 
+
+#*random subgroups from whole sample ####
+
+set.seed(123)
+
+# Parameter
+n_iter <- 1000
+sample_frac <- 0.5
+
+# Subsample-Correlationen
+compute_subsample_corrs <- function(df, n_iter, sample_frac) {
+  replicate(n_iter, {
+    subsample <- df %>% sample_frac(sample_frac, replace = FALSE)
+    cor(subsample$conservatism_7pt_merged, subsample$bias_threshold, use = "complete.obs")
+  })
+}
+
+# get distribution ob correlation coeffs across subsamples 
+cor_distributions <- d003 %>%
+  group_by(bias_target) %>%
+  group_modify(~ {
+    corrs <- compute_subsample_corrs(.x, n_iter, sample_frac)
+    tibble(r = corrs)
+  }) %>%
+  ungroup()
+
+# Raw values
+originals <- d003 %>%
+  group_by(bias_target) %>%
+  summarise(
+    r_original = cor(conservatism_7pt_merged, bias_threshold, use = "complete.obs"),
+    .groups = "drop"
+  )
+
+# Combine for plot
+cor_distributions_plot <- cor_distributions %>%
+  left_join(originals, by = "bias_target")
+
+
+ggplot(cor_distributions_plot, aes(x = r)) +
+  geom_density(fill = "steelblue", alpha = 0.6) +
+  geom_vline(aes(xintercept = r_original), color = "red", linetype = "dashed", linewidth = 0.8) +
+  facet_wrap(~ bias_target) +
+  labs(title = "Robustheit der Korrelationen in Subsamples",
+       x = "Korrelationskoeffizient", y = "Dichte") +
+  theme_minimal()
+
+
+cor_distributions_plot  %>%
+  group_by(bias_target) %>%
+  reframe(r_original = r_original,
+      r_mean = mean(r, na.rm = TRUE),
+      r_sd = sd(r, na.rm = TRUE),
+      r_ci_low = quantile(r, 0.025, na.rm = TRUE),
+      r_ci_upp = quantile(r, 0.975, na.rm = TRUE)
+    ) %>%
+  distinct()
+
+
+
 #--------------------------------------------#
 #                                            #
-####     Meta Analysis - Forest Plot      ####
+####     Meta-Analysis - Forest Plot      ####
 #                                            #
 #--------------------------------------------#
 
