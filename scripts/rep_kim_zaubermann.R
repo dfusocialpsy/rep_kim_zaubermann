@@ -639,6 +639,28 @@ d003 <- d001[entity %in% c(
     (!is.na(conservatism_7pt_merged) | 
        !is.na(conservatism_slider_merged))]
 
+#* All predictors and moderators ####
+
+
+# Predictor contrasts
+predictors <- c(
+  "bias_target_men_0_vs_women_1",
+  "bias_target_whites_0_vs_blacks_1",
+  "bias_target_men_0_vs_unknown_1",
+  "bias_target_women_0_vs_unknown_1",
+  "bias_target_whites_0_vs_unknown_1",
+  "bias_target_blacks_0_vs_unknown_1"
+)
+
+# other conservatism measures as moderators
+moderators <- c(
+  "conservatism_7pt_merged",
+  "conservatism_econ",
+  "conservatism_slider_v3",
+  "conservatism_social"
+)
+
+
 
 
 #--------------------------------------------#
@@ -1493,24 +1515,6 @@ fig3_mod %>%
 
 #* Johnson-Neyman with other raw conservatism measures as robustness check ####
 
-# Predictor contrasts
-predictors <- c(
-  "bias_target_men_0_vs_women_1",
-  "bias_target_whites_0_vs_blacks_1",
-  "bias_target_men_0_vs_unknown_1",
-  "bias_target_women_0_vs_unknown_1",
-  "bias_target_whites_0_vs_unknown_1",
-  "bias_target_blacks_0_vs_unknown_1"
-)
-
-# other conservatism measures as moderators
-moderators <- c(
-  "conservatism_7pt_merged",
-  "conservatism_econ",
-  "conservatism_slider_v3",
-  "conservatism_social"
-)
-
 fig3_mod_long <- data.frame(
   target1_contrast = character(),
   target2_contrast = character(),
@@ -2242,31 +2246,32 @@ d003 %>%
 
 
 #*random subgroups from whole sample ####
-
 set.seed(123)
 
 # Parameter
 n_iter <- 1000
-sample_frac <- 0.5
+sample_fracs <- c(0.3, 0.5, 0.7)
 
-# Subsample-Correlationen
-compute_subsample_corrs <- function(df, n_iter, sample_frac) {
+# Subsampling-Funktion für beliebige Fraktion
+compute_subsample_corrs <- function(df, sample_frac, n_iter) {
   replicate(n_iter, {
     subsample <- df %>% sample_frac(sample_frac, replace = FALSE)
     cor(subsample$conservatism_7pt_merged, subsample$bias_threshold, use = "complete.obs")
   })
 }
 
-# get distribution ob correlation coeffs across subsamples 
-cor_distributions <- d003 %>%
-  group_by(bias_target) %>%
-  group_modify(~ {
-    corrs <- compute_subsample_corrs(.x, n_iter, sample_frac)
-    tibble(r = corrs)
-  }) %>%
-  ungroup()
+# Loop über alle sample_fracs und Gruppen
+cor_distributions <- map_dfr(sample_fracs, function(frac) {
+  d003 %>%
+    group_by(bias_target) %>%
+    group_modify(~ {
+      corrs <- compute_subsample_corrs(.x, sample_frac = frac, n_iter = n_iter)
+      tibble(r = corrs, sample_frac = frac)
+    }) %>%
+    ungroup()
+})
 
-# Raw values
+# Original-Korrelationen berechnen
 originals <- d003 %>%
   group_by(bias_target) %>%
   summarise(
@@ -2274,30 +2279,48 @@ originals <- d003 %>%
     .groups = "drop"
   )
 
-# Combine for plot
+# Zusammenführen für Plot
 cor_distributions_plot <- cor_distributions %>%
-  left_join(originals, by = "bias_target")
+  left_join(originals, by = "bias_target") %>%
+  mutate(sample_frac = paste0("Sample = ", sample_frac * 100, "%"))
 
+cor_distributions_plot %>%
+  group_by(bias_target, sample_frac) %>%
+  mutate(mean_r = mean(r,na.rm = T),
+         sd_r = sd(r,na.rm = T)
+         ) %>%
+  select(-r) %>%
+  distinct() %>%
+  pivot_wider(names_from = "sample_frac",
+              values_from = c("mean_r","sd_r")) %>%
+  janitor::clean_names() %>%
+  mutate(across(where(is.numeric),round,3),
+         perc30 = paste(mean_r_sample_30_percent,paste0("(",sd_r_sample_30_percent,")")),
+         perc50 = paste(mean_r_sample_50_percent,paste0("(",sd_r_sample_50_percent,")")),
+         perc70 = paste(mean_r_sample_70_percent,paste0("(",sd_r_sample_70_percent,")")),
+         bias_target = stringr::str_to_title(bias_target)) %>%
+  select(1,2,perc30,perc50,perc70) %>%
+  kable("html", escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("condensed", "striped"))
 
-ggplot(cor_distributions_plot, aes(x = r)) +
-  geom_density(fill = "steelblue", alpha = 0.6) +
-  geom_vline(aes(xintercept = r_original), color = "red", linetype = "dashed", linewidth = 0.8) +
-  facet_wrap(~ bias_target) +
-  labs(title = "Distribution of correlation coefficients for 1000 random subsamples (50%)",
-       x = "Correlation", y = "Density") +
-  theme_minimal()
-
-
-cor_distributions_plot  %>%
-  group_by(bias_target) %>%
-  reframe(r_original = r_original,
-      r_mean = mean(r, na.rm = TRUE),
-      r_sd = sd(r, na.rm = TRUE),
-      r_ci_low = quantile(r, 0.025, na.rm = TRUE),
-      r_ci_upp = quantile(r, 0.975, na.rm = TRUE)
-    ) %>%
-  distinct()
-
+# Plot: Vergleich der Verteilungen je nach Sample-Größe
+cor_distributions_plot %>%
+  mutate(bias_target = stringr::str_to_title(bias_target)) %>%
+  ggplot(aes(x = r, color = sample_frac, fill = sample_frac)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(aes(xintercept = r_original), color = "black", linetype = "dashed") +
+  facet_wrap(~ bias_target, ncol = 3) +
+  labs(title = "Robustness of correlations across subsample sizes",
+       x = "Correlation coefficient (r)",
+       y = "Density",
+       color = "Sample size",
+       fill = "Sample size") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12),
+        title = element_text(size = 14),
+        strip.text = element_text(size = 12),
+        legend.position = "none")
 
 
 #--------------------------------------------#
